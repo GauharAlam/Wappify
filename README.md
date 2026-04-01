@@ -124,4 +124,3 @@ This is an MVP built for the Wappify SaaS ecosystem. Feel free to open issues or
 
 ## 📄 License
 [MIT](LICENSE) © 2026 Gauhar Alam. 
-Made with ❤️ by [Gauhar Alam](https://github.com/GauharAlam) using [Zed](https://zed.dev/) & [Antigravity AI](https://github.com/GauharAlam).
