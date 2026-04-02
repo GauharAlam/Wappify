@@ -13,7 +13,7 @@ Wappify is a premium, multi-tenant SaaS platform that enables D2C brands to sell
 
 ### 🛒 Smart WhatsApp Catalog
 - **Live Sync**: Products added via the dashboard are instantly available to customers on WhatsApp.
-- **Dynamic Retrieval**: Search and browse real products with current pricing and stock.
+- **Dynamic Retrieval**: Search and browse real products with current pricing and stock via Gemini AI.
 - **Automated Cart**: Customers can select items and quantity directly in chat.
 
 ### 🧠 AI Customer Concierge
@@ -22,47 +22,51 @@ Wappify is a premium, multi-tenant SaaS platform that enables D2C brands to sell
 - **Multi-lingual Support**: Supports Hinglish, English, and local dialects by default.
 
 ### 📊 Merchant Control Center
-- **Analytics Engine**: Real-time revenue charts (30D), top product stats, and customer metrics.
-- **Order Flow Control**: Mark orders as **Shipped** or **Delivered** with automatic database updates.
+- **Analytics Engine**: Real-time revenue charts (30D), conversion metrics, and active engagement tracking.
+- **Dynamic Header UI**: Integrated Notification center and User Profile menus for seamless navigation.
 - **Product CMS**: Add, Edit, or Soft-Delete products with support for images and inventory levels.
 
-### 💳 Native Payments
-- **Razorpay Integration**: Generates secure UPI and card payment links sent directly over WhatsApp.
-- **Webhook Verified**: Bot acknowledges payment status once webhook confirmation is received.
+### ⚡ Reliability at Scale
+- **Postgres Webhook Queue**: Implemented an async outbox pattern. Webhooks are instantly acknowledged and queued in the DB, ensuring zero message loss during AI processing.
+- **Rate Limiting Protection**: Built-in DDoS and bot protection (150 req/min) to safeguard your AI token budget.
 
 ---
 
 ## 🏗️ Architecture
 
-Wappify is split into two primary components for optimal scalability:
+Wappify is split into two primary components for optimal scalability, now featuring a decoupled background worker:
 
 ```mermaid
 graph TD
-    User((Customer)) <--> |WhatsApp| WB[Wappify Bot Engine]
-    WB <--> |Prisma| DB[(Database)]
-    WB <--> |API| AI[Gemini 1.5 Flash]
+    User((Customer)) <--> |WhatsApp| WB[Wappify Webhook Receiver]
+    WB --> |Queue Payload| DB[(Postgres Queue)]
     
-    Merchant((Merchant)) <--> |React/Next.js| WD[Wappify Dashboard]
+    subgraph "Background Worker"
+        BW[Queue Processor] <--> |Poll PENDING| DB
+        BW <--> |Analyze| AI[Gemini 1.5 Flash]
+        BW --> |Send Response| User
+    end
+    
+    Merchant((Merchant)) <--> |Next.js 15| WD[Wappify Dashboard]
     WD <--> |Prisma| DB
     
     WB <--> |Webhooks| P[Razorpay/Meta]
 ```
 
 ### `/wappify-backend`
-The core bot logic. Handles incoming messages, AI orchestration, catalog retrieval, and Meta API interactions.
+The high-throughput engine. Features a webhook receiver that instantly acknowledges Meta API events, a Postgres-backed queue, and a background processor that handles AI orchestration and response dispatching.
 
 ### `/wappify-dashboard`
-The merchant facing portal. Built with Next.js 15, specialized in order tracking, product management, and business intelligence.
+The merchant facing portal. Built with Next.js 15 (App Router), featuring a conversion-optimized landing page, secure onboarding, and real-time business intelligence.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Dashboard**: Next.js 15 (App Router), Tailwind CSS, Shadcn/UI, Lucide.
+- **Dashboard**: Next.js 15, Tailwind CSS, Shadcn/UI, Framer Motion, Lucide.
 - **Backend Server**: Node.js & Express with TypeScript.
-- **Database**: PostgreSQL / SQLite (managed via Prisma ORM).
-- **AI Integration**: Google AI SDK (Gemini 1.5 Flash).
-- **Payment Link**: Razorpay API.
+- **Database**: PostgreSQL (managed via Prisma ORM).
+- **Core Engine**: Google Gemini AI, WhatsApp Cloud API, Razorpay Payments.
 
 ---
 
@@ -70,9 +74,9 @@ The merchant facing portal. Built with Next.js 15, specialized in order tracking
 
 ### Prerequisites
 - Node.js 18+
-- A [Meta Developer Account](https://developers.facebook.com/) (for WhatsApp API)
-- A [Google AI Studio Key](https://aistudio.google.com/) (for Gemini)
-- A [Razorpay Key & Secret](https://dashboard.razorpay.com/) (optional, for payments)
+- A [Meta Developer Account](https://developers.facebook.com/)
+- A [Google AI Studio Key](https://aistudio.google.com/)
+- A [PostgreSQL Database](https://supabase.com/)
 
 ### 1. Installation
 ```bash
@@ -82,43 +86,34 @@ cd Wappify
 # Setup Backend
 cd wappify-backend
 npm install
-cp .env.example .env # Fill in your keys (see below)
+cp .env.example .env
+npx prisma generate
 npx prisma db push
-npm run build && npm run dev
+npm run dev
 
 # Setup Dashboard (New Terminal)
 cd ../wappify-dashboard
 npm install
-cp .env.example .env # Fill in your keys (see below)
+cp .env.example .env
+npx prisma generate
 npx prisma db push
 npm run dev
 ```
 
-### 2. Required Environment Variables
-
-| Variable | Source | Purpose |
-| :--- | :--- | :--- |
-| `MERCHANT_ID` | DB / Static | Default merchant UUID. |
-| `GEMINI_API_KEY` | Google AI Studio | Powers the bot intelligence. |
-| `WHATSAPP_PHONE_NUMBER_ID` | Meta Dashboard | Meta unique phone ID. |
-| `WHATSAPP_ACCESS_TOKEN` | Meta Dashboard | Meta permanent access token. |
-| `WHATSAPP_VERIFY_TOKEN` | Custom | Used to verify Meta webhooks. |
-| `DATABASE_URL` | DB Host | Prisma connection string. |
-
 ---
 
-## 🛡️ Security & Privacy
-- **Masked Secrets**: Dashboard hides potentially sensitive API keys and only shows the last 4 characters for verification.
-- **Soft Delete**: Product removal is non-destructive to preserve historical order integrity.
-- **Isolated Memory**: Conversation history is stored in-memory per message session to ensure data privacy.
+## 🛡️ Security & Scalability
+- **Decoupled Processing**: AI logic is separated from the request/response cycle, preventing WhatsApp webhook timeouts (200 OK sent in <20ms).
+- **Resource Protection**: Express-rate-limit prevents malicious actors from draining your AI budget via webhook spam.
+- **Type Safety**: Full-stack TypeScript with shared Prisma models ensures data integrity across the dashboard and backend.
 
 ---
 
 ## 👨‍💻 Contributing
 This is an MVP built for the Wappify SaaS ecosystem. Feel free to open issues or PRs for:
-- [ ] Multi-image product carousels.
 - [ ] Multi-merchant onboarding automation.
 - [ ] Abandoned cart reminders.
+- [ ] Advanced analytics with Recharts.
 
 ---
 
