@@ -11,8 +11,10 @@ import {
   MessageSquare,
   Zap,
   TrendingUp,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSession, signOut } from "next-auth/react";
 
 // ─────────────────────────────────────────────
 // Nav config
@@ -52,18 +54,10 @@ const NAV_ITEMS = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [merchantName, setMerchantName] = useState("StyleHouse India");
+  const { data: session } = useSession();
 
-  useEffect(() => {
-    fetch("/api/settings")
-      .then((res) => res.json())
-      .then((json) => {
-        if (json.success && json.data?.name) {
-          setMerchantName(json.data.name);
-        }
-      })
-      .catch(console.error);
-  }, []);
+  const merchantName = session?.user?.name || "My Store";
+  const email = session?.user?.email || "merchant@wappify.com";
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r bg-card">
@@ -122,21 +116,29 @@ export default function Sidebar() {
       </nav>
 
       {/* ── Merchant badge ───────────────────── */}
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-3">
         <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
           {/* Avatar */}
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15">
-            <Zap className="h-3.5 w-3.5 text-primary" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary text-xs uppercase">
+            {merchantName.substring(0, 2)}
           </div>
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{merchantName}</p>
-            <p className="text-[10px] text-muted-foreground">Pro Plan · Active</p>
+            <p className="truncate text-[10px] text-muted-foreground">{email}</p>
           </div>
 
           {/* Online dot */}
           <span className="h-2 w-2 shrink-0 rounded-full bg-green-500 ring-2 ring-background" />
         </div>
+
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </button>
       </div>
     </aside>
   );

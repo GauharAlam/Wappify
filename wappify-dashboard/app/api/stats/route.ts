@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+import { auth } from "@/auth";
+
 export async function GET() {
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
+
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const merchantId = process.env.MERCHANT_ID;
 
     const [totalOrders, paidOrders, pendingOrders, totalCustomers] =
       await Promise.all([

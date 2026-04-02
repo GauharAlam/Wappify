@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
 import {
   ShoppingCart,
   IndianRupee,
@@ -36,8 +38,8 @@ export const metadata: Metadata = {
 // extra network hop and serialization overhead.
 // ─────────────────────────────────────────────
 
-async function getStats() {
-  const merchantId = process.env.MERCHANT_ID;
+async function getStats(merchantId: string) {
+
 
   const [totalOrders, paidOrders, pendingOrders, totalCustomers, merchant] =
     await Promise.all([
@@ -71,8 +73,8 @@ async function getStats() {
   };
 }
 
-async function getRecentOrders() {
-  const merchantId = process.env.MERCHANT_ID;
+async function getRecentOrders(merchantId: string) {
+
 
   const orders = await prisma.order.findMany({
     where: { merchantId },
@@ -330,9 +332,18 @@ function RecentOrdersTable({ orders }: { orders: RecentOrder[] }) {
 // ─────────────────────────────────────────────
 
 export default async function DashboardPage() {
+  const session = await auth();
+  
+  if (!session?.user?.merchantId) {
+    // If user has no merchant profile, redirect to onboarding or settings
+    redirect("/settings");
+  }
+
+  const merchantId = session.user.merchantId;
+
   const [stats, recentOrders] = await Promise.all([
-    getStats(),
-    getRecentOrders(),
+    getStats(merchantId),
+    getRecentOrders(merchantId),
   ]);
 
   return (

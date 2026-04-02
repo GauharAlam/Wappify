@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 export async function GET() {
-  try {
-    const merchantId = process.env.MERCHANT_ID;
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
 
-    if (!merchantId) {
-      return NextResponse.json(
-        { success: false, message: "MERCHANT_ID is not configured on the server." },
-        { status: 500 }
-      );
-    }
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
 
     const merchant = await prisma.merchant.findUnique({
       where: { id: merchantId },
@@ -62,15 +62,14 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  try {
-    const merchantId = process.env.MERCHANT_ID;
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
 
-    if (!merchantId) {
-      return NextResponse.json(
-        { success: false, message: "MERCHANT_ID is not configured on the server." },
-        { status: 500 }
-      );
-    }
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
 
     const body = await req.json();
 

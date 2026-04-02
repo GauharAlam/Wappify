@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 // ─────────────────────────────────────────────
 // GET /api/products
@@ -9,11 +10,16 @@ import { prisma } from "@/lib/prisma";
 // ─────────────────────────────────────────────
 
 export async function GET() {
-  try {
-    const merchantId = process.env.MERCHANT_ID;
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
 
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
     const products = await prisma.product.findMany({
-      where: merchantId ? { merchantId } : undefined,
+      where: { merchantId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -52,19 +58,14 @@ export async function GET() {
 // ─────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  try {
-    const merchantId = process.env.MERCHANT_ID;
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
 
-    if (!merchantId) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "MERCHANT_ID is not configured. Add it to .env.local and restart.",
-        },
-        { status: 500 },
-      );
-    }
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
 
     // ── Parse body ────────────────────────────
     let body: unknown;

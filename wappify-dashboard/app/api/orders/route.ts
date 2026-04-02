@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
+
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const merchantId = process.env.MERCHANT_ID;
     const { searchParams } = new URL(req.url);
 
     const page   = Math.max(1, parseInt(searchParams.get("page")  ?? "1",  10));
@@ -14,9 +21,8 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
 
     // ── Build where clause ────────────────────────────────────────────
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { merchantId };
 
-    if (merchantId) where.merchantId = merchantId;
     if (status && status !== "ALL") where.status = status;
 
     if (search) {
@@ -123,6 +129,13 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function PATCH(req: NextRequest) {
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
+
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     let body: unknown;
     try {
@@ -157,7 +170,7 @@ export async function PATCH(req: NextRequest) {
 
     // ── Fetch current order ──────────────────────
     const order = await prisma.order.findUnique({
-      where: { id: orderId as string },
+      where: { id: orderId as string, merchantId },
       select: { id: true, status: true },
     });
 

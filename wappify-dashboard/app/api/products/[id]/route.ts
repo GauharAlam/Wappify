@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 
 // ─────────────────────────────────────────────
 // PATCH /api/products/[id]
@@ -10,9 +11,15 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
+
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
-    const merchantId = process.env.MERCHANT_ID;
 
     // Verify product exists and belongs to merchant
     const existing = await prisma.product.findUnique({
@@ -133,9 +140,15 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await auth();
+  const merchantId = session?.user?.merchantId;
+
+  if (!merchantId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { id } = await params;
-    const merchantId = process.env.MERCHANT_ID;
 
     // Verify product exists and belongs to merchant
     const existing = await prisma.product.findUnique({
