@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 import type { Metadata } from "next";
 import ProductsGrid from "@/components/products/ProductsGrid";
+import { getRequiredMerchantId } from "@/lib/auth-utils";
 
 export const metadata: Metadata = {
   title: "Products",
@@ -29,10 +30,10 @@ export type SerializedProduct = {
 // ─────────────────────────────────────────────
 
 async function getProducts(): Promise<SerializedProduct[]> {
-  const merchantId = process.env.MERCHANT_ID;
+  const merchantId = await getRequiredMerchantId();
 
   const products = await prisma.product.findMany({
-    where: merchantId ? { merchantId } : undefined,
+    where: merchantId ? { merchantId } : { id: "none" },
     orderBy: { createdAt: "desc" },
   });
 

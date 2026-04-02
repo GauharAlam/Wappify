@@ -10,16 +10,19 @@ import {
 import { Badge, getStatusVariant } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ShoppingCart } from "lucide-react";
+import { getRequiredMerchantId } from "@/lib/auth-utils";
 
 // ─────────────────────────────────────────────
 // Data fetcher (runs server-side, direct Prisma)
 // ─────────────────────────────────────────────
 
 async function getRecentOrders() {
-  const merchantId = process.env.MERCHANT_ID;
+  const merchantId = await getRequiredMerchantId();
+
+  if (!merchantId) return [];
 
   const orders = await prisma.order.findMany({
-    where: merchantId ? { merchantId } : undefined,
+    where: { merchantId },
     include: {
       customer: true,
       items: {

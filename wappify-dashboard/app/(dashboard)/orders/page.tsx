@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import OrdersTable from "@/components/orders/OrdersTable";
 import type { Metadata } from "next";
 import { ShoppingCart } from "lucide-react";
+import { getRequiredMerchantId } from "@/lib/auth-utils";
 import type { SerializedOrder } from "@/components/orders/OrdersTable";
 
 export const metadata: Metadata = {
@@ -15,10 +16,10 @@ export const metadata: Metadata = {
 // ─────────────────────────────────────────────
 
 async function getOrders(): Promise<SerializedOrder[]> {
-  const merchantId = process.env.MERCHANT_ID;
+  const merchantId = await getRequiredMerchantId();
 
   const orders = await prisma.order.findMany({
-    where: merchantId ? { merchantId } : undefined,
+    where: merchantId ? { merchantId } : { id: "none" },
     include: {
       customer: true,
       items: {
