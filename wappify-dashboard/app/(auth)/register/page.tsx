@@ -17,7 +17,7 @@ export default function RegisterPage() {
       
       {/* ── Logo ────────────────────── */}
       <Link href="/" className="relative z-10 mb-8 flex h-16 items-center gap-3">
-        <Image src="/logo.png" alt="Wappify Logo" width={48} height={48} className="rounded-2xl shadow-lg shrink-0" />
+        <Image src="/logo.svg" alt="Wappify Logo" width={48} height={48} className="rounded-2xl shrink-0" />
         <div className="flex flex-col leading-none">
           <span className="text-2xl font-bold tracking-tight">Wappify</span>
           <span className="text-xs font-medium text-muted-foreground">
