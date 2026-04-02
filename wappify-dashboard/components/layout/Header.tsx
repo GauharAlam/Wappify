@@ -1,6 +1,7 @@
-import { Bell, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import NotificationMenu from "./NotificationMenu";
+import UserMenu from "./UserMenu";
 import { auth } from "@/auth";
 
 export default async function Header() {
@@ -23,18 +24,14 @@ export default async function Header() {
 
       <div className="flex items-center gap-2 ml-auto">
         {/* Notification Bell */}
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-card" />
-          <span className="sr-only">Notifications</span>
-        </Button>
+        <NotificationMenu />
 
         {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-          <span className="text-xs font-bold text-primary uppercase select-none">
-            {initials}
-          </span>
-        </div>
+        <UserMenu 
+          initials={initials} 
+          name={userName} 
+          email={session?.user?.email || undefined} 
+        />
       </div>
     </header>
   );
