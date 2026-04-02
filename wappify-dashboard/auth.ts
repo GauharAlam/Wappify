@@ -14,7 +14,6 @@ export const {
   session: { strategy: "jwt" },
   ...authConfig,
   providers: [
-    ...authConfig.providers,
     {
       id: "credentials",
       name: "Credentials",

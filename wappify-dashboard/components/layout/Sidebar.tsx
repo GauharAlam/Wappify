@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingCart,
   Package,
   Settings,
-  MessageSquare,
   Zap,
   TrendingUp,
   LogOut,
@@ -63,9 +63,7 @@ export default function Sidebar() {
     <aside className="flex h-screen w-64 flex-col border-r bg-card">
       {/* ── Logo ────────────────────────────── */}
       <div className="flex h-16 items-center gap-3 border-b px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm">
-          <MessageSquare className="h-5 w-5 text-primary-foreground" />
-        </div>
+        <Image src="/logo.png" alt="Wappify Logo" width={36} height={36} className="rounded-xl shadow-sm shrink-0" />
         <div className="flex flex-col leading-none">
           <span className="text-base font-bold tracking-tight">Wappify</span>
           <span className="text-[10px] font-medium text-muted-foreground">

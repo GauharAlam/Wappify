@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
+import Image from "next/image";
 import RegisterForm from "@/components/auth/RegisterForm";
 
 export const metadata: Metadata = {
@@ -17,9 +17,7 @@ export default function RegisterPage() {
       
       {/* ── Logo ────────────────────── */}
       <Link href="/" className="relative z-10 mb-8 flex h-16 items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
-          <MessageSquare className="h-7 w-7 text-primary-foreground" />
-        </div>
+        <Image src="/logo.png" alt="Wappify Logo" width={48} height={48} className="rounded-2xl shadow-lg shrink-0" />
         <div className="flex flex-col leading-none">
           <span className="text-2xl font-bold tracking-tight">Wappify</span>
           <span className="text-xs font-medium text-muted-foreground">

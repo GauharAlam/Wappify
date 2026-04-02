@@ -1,21 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
 
 export default {
-  providers: [
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        // This is a placeholder. Real logic will be in auth.ts
-        // which includes the database adapter.
-        return null;
-      },
-    }),
-  ],
+  providers: [],
   pages: {
     signIn: "/login",
   },
