@@ -455,7 +455,7 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
               <strong className="font-semibold">Webhook URL:</strong>{" "}
               <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                https://your-backend-url/api/webhooks/whatsapp
+                https://your-domain.com/api/webhook/whatsapp
               </code>
               <br />
               <span className="mt-1 block text-blue-600">
@@ -556,14 +556,14 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
               <strong className="font-semibold">Razorpay Webhook URL:</strong>{" "}
               <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                https://your-backend-url/api/webhooks/razorpay
+                https://your-domain.com/api/webhook/razorpay
               </code>
               <br />
               <span className="mt-1 block text-blue-600">
                 Register this in Razorpay Dashboard → Settings → Webhooks.
                 Enable the{" "}
-                <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                  payment_link.paid
+                <code className="rounded bg-blue-100 px-1 py-0.5 font-mono text-blue-800">
+                  order.paid
                 </code>{" "}
                 event. Copy the webhook secret to{" "}
                 <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">

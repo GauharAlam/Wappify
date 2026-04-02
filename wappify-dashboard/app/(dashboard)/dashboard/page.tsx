@@ -2,6 +2,7 @@ import StatsCards from "@/components/dashboard/StatsCards";
 import RecentOrdersTable from "@/components/dashboard/RecentOrdersTable";
 import type { Metadata } from "next";
 import { getRequiredMerchant } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -9,6 +10,13 @@ export const metadata: Metadata = {
 
 export default async function DashboardPage() {
   const merchant = await getRequiredMerchant();
+  
+  // ── ONBOARDING CHECK ───────────────────
+  // If no merchant profile exists OR merchant hasn't connected WhatsApp/Payments,
+  // we redirect them to the Zero-to-Hero onboarding experience.
+  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
+    redirect("/onboarding");
+  }
   
   return (
     <div className="space-y-6">

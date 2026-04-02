@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { Settings } from "lucide-react";
 import { getRequiredMerchant } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Settings",
@@ -30,6 +31,11 @@ export type MerchantSettings = {
 export default async function SettingsPage() {
   const merchant = await getRequiredMerchant();
 
+  // 📝 ONBOARDING CHECK
+  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
+    redirect("/onboarding");
+  }
+
   return (
     <div className="space-y-6 max-w-3xl">
       {/* ── Page Header ────────────────────── */}
@@ -44,8 +50,6 @@ export default async function SettingsPage() {
           </p>
         </div>
       </div>
-
-
 
       {/* ── Settings Form ───────────────────── */}
       <SettingsForm merchant={merchant} />

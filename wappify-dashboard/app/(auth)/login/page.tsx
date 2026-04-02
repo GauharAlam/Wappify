@@ -1,12 +1,10 @@
+"use client";
+
+import * as React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import LoginForm from "@/components/auth/LoginForm";
-
-export const metadata: Metadata = {
-  title: "Login | Wappify",
-  description: "Sign in to your Wappify merchant dashboard.",
-};
 
 export default function LoginPage() {
   return (
@@ -28,7 +26,9 @@ export default function LoginPage() {
 
       {/* ── Login Form ──────────────── */}
       <div className="relative z-10 w-full max-w-[420px]">
-        <LoginForm />
+        <React.Suspense fallback={<div className="h-[400px] w-full bg-background/60 animate-pulse rounded-2xl" />}>
+          <LoginForm />
+        </React.Suspense>
       </div>
 
       {/* ── Footer ──────────────────── */}

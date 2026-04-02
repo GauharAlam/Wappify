@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 import type { Metadata } from "next";
 import ProductsGrid from "@/components/products/ProductsGrid";
-import { getRequiredMerchantId } from "@/lib/auth-utils";
+import { getRequiredMerchant } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Products",
@@ -29,11 +30,9 @@ export type SerializedProduct = {
 // Data fetcher — direct Prisma (Server Component)
 // ─────────────────────────────────────────────
 
-async function getProducts(): Promise<SerializedProduct[]> {
-  const merchantId = await getRequiredMerchantId();
-
+async function getProducts(merchantId: string): Promise<SerializedProduct[]> {
   const products = await prisma.product.findMany({
-    where: merchantId ? { merchantId } : { id: "none" },
+    where: { merchantId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -57,10 +56,19 @@ async function getProducts(): Promise<SerializedProduct[]> {
 // ─────────────────────────────────────────────
 
 export default async function ProductsPage() {
-  const products = await getProducts();
+  const merchant = await getRequiredMerchant();
 
-  const activeCount = products.filter((p) => p.isActive).length;
-  const outOfStockCount = products.filter((p) => p.stock === 0).length;
+  // 📝 ONBOARDING CHECK
+  // If no merchant profile exists OR merchant hasn't connected WhatsApp/Payments,
+  // we redirect them to the Zero-to-Hero onboarding experience.
+  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
+    redirect("/onboarding");
+  }
+
+  const products = await getProducts(merchant.id);
+
+  const activeCount = products.filter((p: SerializedProduct) => p.isActive).length;
+  const outOfStockCount = products.filter((p: SerializedProduct) => p.stock === 0).length;
 
   return (
     <div className="space-y-6">
@@ -99,8 +107,6 @@ export default async function ProductsPage() {
       </div>
 
       {/* ── Products Grid (Client Component) ─ */}
-      {/* ProductsGrid is a Client Component so it can handle    */}
-      {/* the Add / Edit dialog state without a full page reload. */}
       <ProductsGrid initialProducts={products} />
     </div>
   );

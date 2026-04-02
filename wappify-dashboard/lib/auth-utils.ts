@@ -14,16 +14,16 @@ export async function getRequiredMerchant() {
     redirect("/login");
   }
 
-  // We check the database to ensure it still exists and is linked
   const merchant = await prisma.merchant.findFirst({
     where: { userId: session.user.id },
   });
 
-  if (!merchant) {
-    // If no merchant exists for this user, we might want to redirect
-    // to an onboarding page. For now, we allow null and handle it in UI
-    // but the ID is what most components need.
-    return null;
+  // Check if onboarding is complete
+  const isIncomplete = !merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId;
+
+  // We allow the onboarding page to bypass this check to prevent infinite loops
+  if (isIncomplete) {
+    return merchant; // Return the partial merchant so the onboarding page can use it
   }
 
   return merchant;

@@ -10,9 +10,10 @@ export default {
       const isLoggedIn = !!auth?.user;
       const isApiRoute = nextUrl.pathname.startsWith("/api");
       const isPublicRoute = 
+        nextUrl.pathname === "/" || 
         nextUrl.pathname === "/login" || 
         nextUrl.pathname === "/register" ||
-        nextUrl.pathname.startsWith("/api/webhooks"); // Webhooks must stay public
+        nextUrl.pathname.startsWith("/api/webhooks"); 
 
       if (isPublicRoute || isApiRoute) return true;
       return isLoggedIn;

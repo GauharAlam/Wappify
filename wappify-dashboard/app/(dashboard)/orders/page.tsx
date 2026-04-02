@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import OrdersTable from "@/components/orders/OrdersTable";
 import type { Metadata } from "next";
 import { ShoppingCart } from "lucide-react";
-import { getRequiredMerchantId } from "@/lib/auth-utils";
+import { getRequiredMerchant } from "@/lib/auth-utils";
+import { redirect } from "next/navigation";
 import type { SerializedOrder } from "@/components/orders/OrdersTable";
 
 export const metadata: Metadata = {
@@ -11,15 +12,11 @@ export const metadata: Metadata = {
 
 // ─────────────────────────────────────────────
 // Data fetcher — direct Prisma (Server Component)
-// Items are flattened so the Client Component
-// (OrdersTable) can render without extra nesting.
 // ─────────────────────────────────────────────
 
-async function getOrders(): Promise<SerializedOrder[]> {
-  const merchantId = await getRequiredMerchantId();
-
+async function getOrders(merchantId: string): Promise<SerializedOrder[]> {
   const orders = await prisma.order.findMany({
-    where: merchantId ? { merchantId } : { id: "none" },
+    where: { merchantId },
     include: {
       customer: true,
       items: {
@@ -34,8 +31,6 @@ async function getOrders(): Promise<SerializedOrder[]> {
     take: 100,
   });
 
-  // Serialize all Decimal / Date fields AND flatten item.product.name
-  // to productName so the shape matches SerializedOrder in OrdersTable.
   return orders.map((order) => ({
     id: order.id,
     shortId: order.id.slice(0, 8).toUpperCase(),
@@ -61,7 +56,14 @@ async function getOrders(): Promise<SerializedOrder[]> {
 // ─────────────────────────────────────────────
 
 export default async function OrdersPage() {
-  const orders = await getOrders();
+  const merchant = await getRequiredMerchant();
+
+  // 📝 ONBOARDING CHECK
+  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
+    redirect("/onboarding");
+  }
+
+  const orders = await getOrders(merchant.id);
 
   return (
     <div className="space-y-6">
