@@ -1,6 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { routeMessage } from "../services/messageRouter.service";
-import { sendMediaAcknowledgement } from "../services/whatsapp.service";
+import { prisma } from "../lib/prisma";
 
 const safeStringify = (value: unknown): string => {
   try {
@@ -116,107 +115,17 @@ export const receiveWhatsAppWebhook = async (
       message: "Webhook event received",
     });
 
-    // ── Process entries ──────────────────────────
-    const entries = Array.isArray(body.entry) ? body.entry : [];
+    // ── Enqueue the payload into the Database ────
+    await prisma.webhookEvent.create({
+      data: {
+        payload: body,
+        status: "PENDING",
+      },
+    });
 
-    for (const entry of entries) {
-      const changes = Array.isArray(entry?.changes) ? entry.changes : [];
-
-      for (const change of changes) {
-        const value = change?.value;
-
-        // ── Incoming messages ──────────────────
-        if (Array.isArray(value?.messages)) {
-          const contacts: any[] = Array.isArray(value?.contacts)
-            ? value.contacts
-            : [];
-
-          for (const message of value.messages) {
-            const from: string = message?.from || "";
-            const messageId: string = message?.id || "";
-            const timestamp: string = message?.timestamp || "";
-            const type: string = message?.type || "";
-
-            // Resolve customer display name from contacts array
-            const contact = contacts.find((c: any) => c?.wa_id === from);
-            const customerName: string | undefined =
-              contact?.profile?.name || undefined;
-
-            console.log("[WHATSAPP MESSAGE] ──────────────────────");
-            console.log("[WHATSAPP MESSAGE] From        :", from);
-            console.log(
-              "[WHATSAPP MESSAGE] Customer    :",
-              customerName || "Unknown",
-            );
-            console.log("[WHATSAPP MESSAGE] Message ID  :", messageId);
-            console.log("[WHATSAPP MESSAGE] Timestamp   :", timestamp);
-            console.log("[WHATSAPP MESSAGE] Type        :", type);
-
-            if (type === "text") {
-              const textBody: string = message?.text?.body || "";
-              console.log("[WHATSAPP MESSAGE] Text        :", textBody);
-
-              if (from && textBody) {
-                // ── Dispatch to State Machine Router ──
-                await routeMessage(from, textBody, customerName);
-              } else {
-                console.warn(
-                  "[WHATSAPP MESSAGE] Skipping: missing 'from' or empty text",
-                );
-              }
-            } else {
-              // Non-text messages (image, audio, sticker, etc.)
-              console.log(
-                `[WHATSAPP MESSAGE] Non-text message type: "${type}"`,
-              );
-
-              // Send acknowledgement for media messages
-              const mediaTypes = ["image", "video", "audio", "document", "sticker"];
-              if (from && mediaTypes.includes(type)) {
-                await sendMediaAcknowledgement(from, type);
-              } else {
-                console.log(
-                  `[WHATSAPP MESSAGE] Unsupported message type: "${type}" — Full object:`,
-                  safeStringify(message),
-                );
-              }
-            }
-          }
-        }
-
-        // ── Delivery / read status updates ─────
-        if (Array.isArray(value?.statuses)) {
-          for (const status of value.statuses) {
-            console.log("[WHATSAPP STATUS] ──────────────────────");
-            console.log(
-              "[WHATSAPP STATUS] Recipient  :",
-              status?.recipient_id || "N/A",
-            );
-            console.log(
-              "[WHATSAPP STATUS] Status     :",
-              status?.status || "N/A",
-            );
-            console.log("[WHATSAPP STATUS] Message ID :", status?.id || "N/A");
-            console.log(
-              "[WHATSAPP STATUS] Timestamp  :",
-              status?.timestamp || "N/A",
-            );
-          }
-        }
-
-        // ── Other / unknown change fields ───────
-        if (!value?.messages && !value?.statuses) {
-          console.log(
-            "[WHATSAPP POST] Non-message/status event received:",
-            safeStringify(change),
-          );
-        }
-      }
-    }
+    console.log("[WHATSAPP POST] Event successfully queued to DB.");
   } catch (error) {
-    // Don't call next(error) here — we've already sent 200 to Meta.
-    // Log the error and handle it gracefully so Meta doesn't retry.
-    console.error("[WHATSAPP POST] Error while processing webhook event:");
+    console.error("[WHATSAPP POST] Error queuing webhook event:");
     console.error(error);
   }
 };

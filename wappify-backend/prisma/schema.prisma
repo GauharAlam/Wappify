@@ -92,3 +92,19 @@ model OrderItem {
   quantity    Int
   priceAtTime Decimal @db.Decimal(10, 2)
 }
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model WebhookEvent {
+  id        String    @id @default(uuid())
+  payload   Json
+  status    JobStatus @default(PENDING)
+  error     String?   @db.Text
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}

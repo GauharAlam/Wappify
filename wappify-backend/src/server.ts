@@ -5,9 +5,11 @@ import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import rateLimit from "express-rate-limit";
 import whatsappRoutes from "./routes/whatsapp.routes";
 import razorpayRoutes from "./routes/razorpay.routes";
 import { ensureSeedData } from "./lib/seed";
+import { runQueueProcessor } from "./services/queueProcessor.service";
 
 const app = express();
 const PORT = Number(process.env.PORT || 8080);
@@ -87,7 +89,21 @@ app.get("/health", (_req: Request, res: Response) => {
   });
 });
 
-app.use("/api/webhooks/whatsapp", whatsappRoutes);
+// ─────────────────────────────────────────────
+// Rate Limiting for Webhooks
+// ─────────────────────────────────────────────
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 150, // limit each IP to 150 requests per windowMs
+  standardHeaders: true, 
+  legacyHeaders: false, 
+  handler: (req, res) => {
+    console.warn(`[RATE LIMIT] IP ${req.ip} exceeded webhook limits.`);
+    res.status(429).json({ success: false, message: "Too many webhook requests, please try again later." });
+  }
+});
+
+app.use("/api/webhooks/whatsapp", webhookLimiter, whatsappRoutes);
 
 // ─────────────────────────────────────────────
 // 404 Handler
@@ -141,4 +157,7 @@ app.listen(PORT, async () => {
   // This is non-blocking — a seed failure will log a warning but
   // will NOT crash the server.
   await ensureSeedData();
+
+  // Initialize background queue polling for decoupled webhooks
+  runQueueProcessor();
 });
