@@ -40,10 +40,10 @@ export default function LandingPage() {
       {/* ── Navigation ────────────────────── */}
       <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 outline-none">
+          <a href="#" className="flex items-center gap-2.5 outline-none">
             <img src="/logo.svg" alt="Wappify Logo" className="w-9 h-9 rounded-xl shrink-0" />
             <span className="text-xl font-bold tracking-tight">Wappify</span>
-          </Link>
+          </a>
           
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
             <a href="#features" className="hover:text-emerald-600 transition-colors">Features</a>
@@ -65,7 +65,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ── Hero Section ──────────────────── */}
-      <header className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
+      <header id="top" className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10">
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-50 rounded-full blur-[120px] opacity-60" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50 rounded-full blur-[120px] opacity-60" />
@@ -136,7 +136,7 @@ export default function LandingPage() {
       </header>
 
       {/* ── Features Section ──────────────── */}
-      <section id="features" className="py-24 bg-slate-50">
+      <section id="features" className="py-24 bg-slate-50 scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
             <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-[0.2em]">The Future of Commerce</h2>
@@ -204,7 +204,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Demo/Dashboard Section ────────── */}
-      <section id="demo" className="py-24 overflow-hidden">
+      <section id="demo" className="py-24 overflow-hidden scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="bg-slate-900 rounded-[3rem] px-8 py-20 lg:p-20 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[60%] h-full bg-emerald-500/10 blur-[150px] -z-0" />
@@ -255,7 +255,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing Section ───────────────── */}
-      <section id="pricing" className="py-24">
+      <section id="pricing" className="py-24 scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-center">
             <h2 className="text-4xl font-extrabold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-slate-500 mb-16 text-lg font-medium">Scales with your business, from MVP to Enterprise.</p>
@@ -303,10 +303,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid md:grid-cols-4 gap-12 mb-16">
                 <div className="space-y-6">
-                    <Link href="/" className="flex items-center gap-2.5">
+                    <a href="#" className="flex items-center gap-2.5">
                         <img src="/logo.svg" alt="Wappify Logo" className="w-9 h-9 rounded-xl shrink-0" />
                         <span className="text-xl font-bold tracking-tight">Wappify</span>
-                    </Link>
+                    </a>
                     <p className="text-sm text-slate-500 leading-relaxed font-semibold">
                         Empowering D2C brands with AI-driven commerce. Built for the modern seller.
                     </p>
@@ -314,10 +314,10 @@ export default function LandingPage() {
                 <div>
                     <h5 className="font-bold text-slate-900 mb-6 uppercase text-xs tracking-widest">Product</h5>
                     <ul className="space-y-4 text-sm text-slate-500 font-bold">
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Features</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Pricing</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Roadmap</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Shop Demo</a></li>
+                        <li><a href="#features" className="hover:text-emerald-600 transition-colors">Features</a></li>
+                        <li><a href="#pricing" className="hover:text-emerald-600 transition-colors">Pricing</a></li>
+                        <li><a href="#demo" className="hover:text-emerald-600 transition-colors">How it works</a></li>
+                        <li><Link href="/register" className="hover:text-emerald-600 transition-colors">Get Started</Link></li>
                     </ul>
                 </div>
                 <div>
