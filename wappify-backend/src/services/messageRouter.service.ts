@@ -20,6 +20,28 @@ import {
 import { prisma } from "../lib/prisma";
 
 // ─────────────────────────────────────────────
+// Chat Message Logger (persists to DB for CRM)
+// ─────────────────────────────────────────────
+
+const logChatMessage = (
+  customerWaId: string,
+  sender: "customer" | "bot",
+  message: string,
+): void => {
+  const merchantId = process.env.MERCHANT_ID;
+  if (!merchantId) return;
+
+  // Fire-and-forget — don't block the message flow
+  prisma.chatMessage
+    .create({
+      data: { merchantId, customerWaId, sender, message },
+    })
+    .catch((err: any) => {
+      console.error("[CHAT LOG] Failed to persist message:", err?.message);
+    });
+};
+
+// ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
 
@@ -390,12 +412,17 @@ export const routeMessage = async (
   // Fetch merchant name once for this request
   const merchantName = await getMerchantName();
 
+  // ── Persist customer message to DB (CRM) ────
+  logChatMessage(from, "customer", trimmedText);
+
   switch (messageType) {
     // ── 1. Greeting ─────────────────────────
     case "GREETING": {
       console.log("[ROUTER] → Handler: GREETING");
       // Clear conversation history on greeting (new session)
       clearConversation(from);
+      const greetingMsg = `Namaste${customerName ? " " + customerName : ""}! 🙏 Welcome to ${merchantName}!\n\nHum aapki kya madad kar sakte hai?\n\n1️⃣ Product Catalog dekhein\n2️⃣ Order place karein\n3️⃣ Koi bhi sawaal poochein — AI jawab dega!`;
+      logChatMessage(from, "bot", greetingMsg);
       await sendGreetingMessage(from, customerName, merchantName);
       break;
     }
@@ -412,11 +439,12 @@ export const routeMessage = async (
       }));
 
       if (catalogProducts.length === 0) {
-        await sendTextMessage(
-          from,
-          "😔 Abhi koi product available nahi hai. Thodi der baad dobara try karein!",
-        );
+        const noProductMsg = "😔 Abhi koi product available nahi hai. Thodi der baad dobara try karein!";
+        logChatMessage(from, "bot", noProductMsg);
+        await sendTextMessage(from, noProductMsg);
       } else {
+        const catalogMsg = `📦 ${merchantName} Catalog:\n` + catalogProducts.map((p, i) => `${i+1}. ${p.name} — ₹${p.price}`).join("\n");
+        logChatMessage(from, "bot", catalogMsg);
         await sendCatalogMessage(from, catalogProducts, merchantName);
       }
       break;
@@ -459,6 +487,9 @@ export const routeMessage = async (
       // Store AI response in conversation history
       addToConversation(from, "model", aiResponse);
 
+      // Persist bot response to DB
+      logChatMessage(from, "bot", aiResponse);
+
       await sendTextMessage(from, aiResponse);
       break;
     }
@@ -474,6 +505,7 @@ export const routeMessage = async (
       const fallbackResponse = await generateAIResponse(trimmedText, history);
 
       addToConversation(from, "model", fallbackResponse);
+      logChatMessage(from, "bot", fallbackResponse);
       await sendTextMessage(from, fallbackResponse);
       break;
     }

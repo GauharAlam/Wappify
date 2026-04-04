@@ -11,7 +11,10 @@ import {
   Settings,
   Zap,
   TrendingUp,
+  CreditCard,
   LogOut,
+  Users,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "next-auth/react";
@@ -32,6 +35,11 @@ const NAV_ITEMS = [
     icon: ShoppingCart,
   },
   {
+    href: "/customers",
+    label: "Customers",
+    icon: Users,
+  },
+  {
     href: "/products",
     label: "Products",
     icon: Package,
@@ -40,6 +48,11 @@ const NAV_ITEMS = [
     href: "/analytics",
     label: "Analytics",
     icon: TrendingUp,
+  },
+  {
+    href: "/billing",
+    label: "Billing",
+    icon: CreditCard,
   },
   {
     href: "/settings",
@@ -79,14 +92,23 @@ export default function Sidebar() {
           Menu
         </p>
 
-        {NAV_ITEMS.map((item) => {
-          const Icon = item.icon;
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+        {(() => {
+          const items = [...NAV_ITEMS];
+          if ((session?.user as any)?.role === "ADMIN") {
+            items.push({
+              href: "/admin",
+              label: "Admin Panel",
+              icon: ShieldAlert,
+            });
+          }
+          return items.map((item) => {
+            const Icon = item.icon;
+            const isActive =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
 
-          return (
-            <Link
+            return (
+              <Link
               key={item.href}
               href={item.href}
               className={cn(
@@ -109,8 +131,9 @@ export default function Sidebar() {
                 <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-foreground/70" />
               )}
             </Link>
-          );
-        })}
+            );
+          });
+        })()}
       </nav>
 
       {/* ── Merchant badge ───────────────────── */}

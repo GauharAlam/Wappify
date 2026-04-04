@@ -42,6 +42,7 @@ export const {
           id: user.id,
           name: user.name,
           email: user.email,
+          role: user.role,
         };
       },
     },
@@ -54,6 +55,10 @@ export const {
           where: { userId: user.id },
         });
         token.merchantId = merchant?.id || null;
+        token.role = user.role;
+      }
+      if (trigger === "update" && session?.user?.role) {
+        token.role = session.user.role;
       }
       return token;
     },
@@ -61,6 +66,7 @@ export const {
       if (token.sub && session.user) {
         session.user.id = token.sub;
         session.user.merchantId = token.merchantId as string | null;
+        session.user.role = token.role as any;
       }
       return session;
     },

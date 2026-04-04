@@ -108,3 +108,19 @@ model WebhookEvent {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
+
+// ─────────────────────────────────────────────
+// Chat Message Log (for CRM)
+// ─────────────────────────────────────────────
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  merchantId   String
+  customerWaId String
+  sender       String   // "customer" or "bot"
+  message      String   @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([merchantId, customerWaId])
+  @@index([merchantId, createdAt])
+}

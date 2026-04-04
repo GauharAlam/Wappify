@@ -31,9 +31,62 @@ model Merchant {
 
   products            Product[]
   orders              Order[]
+  subscription        Subscription?
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Subscription Billing
+// ─────────────────────────────────────────────
+
+enum SubscriptionStatus {
+  CREATED
+  AUTHENTICATED
+  ACTIVE
+  PENDING
+  HALTED
+  CANCELLED
+  EXPIRED
+  PAUSED
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+model Subscription {
+  id                      String             @id @default(uuid())
+  merchantId              String             @unique
+  merchant                Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  planTier                PlanTier           @default(STARTER)
+  status                  SubscriptionStatus @default(CREATED)
+
+  // Razorpay identifiers
+  razorpaySubscriptionId  String?            @unique
+  razorpayPlanId          String?
+  razorpayCustomerId      String?
+
+  // Billing cycle
+  currentPeriodStart      DateTime?
+  currentPeriodEnd        DateTime?
+
+  // Trial
+  trialEndsAt             DateTime?
+
+  cancelledAt             DateTime?
+
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 model User {
@@ -46,6 +99,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   merchants     Merchant[]
+  role          UserRole  @default(USER)
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -160,4 +214,20 @@ model WebhookEvent {
   error     String?   @db.Text
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// Chat Message Log (for CRM)
+// ─────────────────────────────────────────────
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  merchantId   String
+  customerWaId String
+  sender       String   // "customer" or "bot"
+  message      String   @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([merchantId, customerWaId])
+  @@index([merchantId, createdAt])
 }
