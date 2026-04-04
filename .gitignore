@@ -3,5 +3,7 @@ node_modules
 dist
 .prisma
 .env
+.env.local
+.env.*.local
 *.log
 /wappify-dashboard/tsconfig.tsbuildinfo

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Mail, Lock, ArrowRight, Github } from "lucide-react";
+import { Loader2, Mail, Lock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ export default function LoginForm() {
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
 
   const [isLoading, setIsLoading] = React.useState(false);
+  const [socialLoading, setSocialLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -47,6 +48,17 @@ export default function LoginForm() {
     }
   }
 
+  const handleGoogleSignIn = async () => {
+    setSocialLoading(true);
+    try {
+      await signIn("google", { callbackUrl });
+    } catch (error) {
+      setError("Could not sign in with Google.");
+    } finally {
+      setSocialLoading(false);
+    }
+  };
+
   return (
     <Card className="w-full border-none bg-background/60 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in duration-500">
       <CardHeader className="space-y-1 text-center">
@@ -70,7 +82,7 @@ export default function LoginForm() {
                   autoCapitalize="none"
                   autoComplete="email"
                   autoCorrect="off"
-                  disabled={isLoading}
+                  disabled={isLoading || socialLoading}
                   className="pl-9"
                   required
                 />
@@ -89,7 +101,7 @@ export default function LoginForm() {
                   id="password"
                   name="password"
                   type="password"
-                  disabled={isLoading}
+                  disabled={isLoading || socialLoading}
                   className="pl-9"
                   required
                 />
@@ -102,7 +114,7 @@ export default function LoginForm() {
                 </p>
               </div>
             )}
-            <Button type="submit" className="w-full h-11" disabled={isLoading}>
+            <Button type="submit" className="w-full h-11" disabled={isLoading || socialLoading}>
               {isLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -121,13 +133,21 @@ export default function LoginForm() {
             <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
           </div>
         </div>
-        <Button variant="outline" type="button" disabled={isLoading} className="h-11">
-          {isLoading ? (
+        <Button 
+          variant="outline" 
+          type="button" 
+          disabled={isLoading || socialLoading} 
+          className="h-11 relative"
+          onClick={handleGoogleSignIn}
+        >
+          {socialLoading ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            <Github className="mr-2 h-4 w-4" />
-          )}{" "}
-          GitHub
+            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+              <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+            </svg>
+          )} 
+          Google
         </Button>
       </CardContent>
       <CardFooter className="flex flex-wrap items-center justify-center gap-1 text-sm text-muted-foreground">
@@ -139,3 +159,4 @@ export default function LoginForm() {
     </Card>
   );
 }
+

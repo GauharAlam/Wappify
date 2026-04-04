@@ -14,6 +14,7 @@ export const {
   session: { strategy: "jwt" },
   ...authConfig,
   providers: [
+    ...(authConfig.providers || []),
     {
       id: "credentials",
       name: "Credentials",
@@ -48,6 +49,7 @@ export const {
     },
   ],
   callbacks: {
+    ...(authConfig.callbacks || {}),
     async jwt({ token, user, trigger, session }) {
       if (user) {
         // Find if this user has a merchant account
