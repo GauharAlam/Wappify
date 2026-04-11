@@ -85,6 +85,39 @@ export async function PATCH(req: NextRequest) {
       aiContext,
     } = body;
 
+    // ── Input length validation for sensitive fields ─────────────────────
+    const MAX_TOKEN_LENGTH = 500;
+    const MAX_NAME_LENGTH = 100;
+    const MAX_CONTEXT_LENGTH = 5000;
+
+    if (typeof name === "string" && name.length > MAX_NAME_LENGTH) {
+      return NextResponse.json(
+        { success: false, message: `Business name must be under ${MAX_NAME_LENGTH} characters.` },
+        { status: 400 }
+      );
+    }
+
+    if (typeof whatsappAccessToken === "string" && whatsappAccessToken.length > MAX_TOKEN_LENGTH) {
+      return NextResponse.json(
+        { success: false, message: "WhatsApp access token exceeds maximum allowed length." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof razorpayKeySecret === "string" && razorpayKeySecret.length > MAX_TOKEN_LENGTH) {
+      return NextResponse.json(
+        { success: false, message: "Razorpay key secret exceeds maximum allowed length." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof aiContext === "string" && aiContext.length > MAX_CONTEXT_LENGTH) {
+      return NextResponse.json(
+        { success: false, message: `AI context must be under ${MAX_CONTEXT_LENGTH} characters.` },
+        { status: 400 }
+      );
+    }
+
     // Build the update payload — only include keys that were actually sent
     const updateData: Record<string, unknown> = {};
 

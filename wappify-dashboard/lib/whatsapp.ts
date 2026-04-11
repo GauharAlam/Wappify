@@ -8,7 +8,7 @@ export async function sendWhatsAppMessage(
   text: string
 ) {
   try {
-    const url = `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`;
+    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
     
     const response = await fetch(url, {
       method: "POST",

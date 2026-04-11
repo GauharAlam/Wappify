@@ -14,14 +14,21 @@ export default {
   callbacks: {
     authorized({ auth, request: { nextUrl } }: { auth: any, request: { nextUrl: any } }) {
       const isLoggedIn = !!auth?.user;
-      const isApiRoute = nextUrl.pathname.startsWith("/api");
+
+      // Public routes that don't require authentication
       const isPublicRoute = 
         nextUrl.pathname === "/" || 
         nextUrl.pathname === "/login" || 
-        nextUrl.pathname === "/register" ||
-        nextUrl.pathname.startsWith("/api/webhooks"); 
+        nextUrl.pathname === "/register";
 
-      if (isPublicRoute || isApiRoute) return true;
+      // Public API routes — only auth, webhooks, and registration
+      const isPublicApiRoute =
+        nextUrl.pathname.startsWith("/api/auth") ||
+        nextUrl.pathname.startsWith("/api/webhooks") ||
+        nextUrl.pathname.startsWith("/api/webhook") ||
+        nextUrl.pathname.startsWith("/api/register");
+
+      if (isPublicRoute || isPublicApiRoute) return true;
       return isLoggedIn;
     },
   },

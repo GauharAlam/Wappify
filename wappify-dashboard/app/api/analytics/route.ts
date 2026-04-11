@@ -72,19 +72,23 @@ export async function GET() {
       take: 5,
     });
 
-    const topProducts = await Promise.all(
-      topProductsRaw.map(async (tp) => {
-        const product = await prisma.product.findUnique({
-          where: { id: tp.productId },
-          select: { name: true, price: true },
-        });
+    const topProducts = await (async () => {
+      const productIds = topProductsRaw.map((tp) => tp.productId);
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, name: true, price: true },
+      });
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      return topProductsRaw.map((tp) => {
+        const product = productMap.get(tp.productId);
         return {
           name: product?.name || "Unknown Product",
           quantity: tp._sum.quantity || 0,
           revenue: (tp._sum.quantity || 0) * Number(product?.price || 0),
         };
-      })
-    );
+      });
+    })();
 
     // ── 4. Summary Stats ───────────────────────
     const [totalRevenueResult, totalCustomers, paidOrdersCount] = await Promise.all([

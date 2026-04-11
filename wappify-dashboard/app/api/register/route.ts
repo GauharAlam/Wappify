@@ -13,6 +13,21 @@ export async function POST(req: Request) {
       );
     }
 
+    // Password strength validation
+    if (password.length < 8) {
+      return NextResponse.json(
+        { message: "Password must be at least 8 characters long." },
+        { status: 400 }
+      );
+    }
+
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      return NextResponse.json(
+        { message: "Password must include an uppercase letter, a lowercase letter, and a digit." },
+        { status: 400 }
+      );
+    }
+
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
