@@ -19,11 +19,9 @@ export async function getRequiredMerchant() {
   });
 
   // Check if onboarding is complete
-  const isIncomplete = !merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId;
-
-  // We allow the onboarding page to bypass this check to prevent infinite loops
-  if (isIncomplete) {
-    return merchant; // Return the partial merchant so the onboarding page can use it
+  const hasPaymentMethod = merchant?.razorpayKeyId || merchant?.upiId;
+  if (!merchant || !merchant.twilioAccountSid || !hasPaymentMethod) {
+    redirect("/onboarding");
   }
 
   return merchant;

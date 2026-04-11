@@ -77,7 +77,7 @@ ${productList}
 STORE POLICIES:
 - Delivery: Free shipping on orders above ₹999, otherwise ₹99 flat shipping charge.
 - Returns: 7-day hassle-free return policy. Item must be unused and in original packaging.
-- Payment: UPI, Debit/Credit Cards, Net Banking via Razorpay. COD is not available.
+- Payment: UPI (GPay, PhonePe, Paytm — zero fees), or Cards/Netbanking via Razorpay. COD is not available.
 - Delivery Time: 3-5 business days across India.
 - Exchanges: Size exchanges allowed within 7 days of delivery.
 ${customContext}

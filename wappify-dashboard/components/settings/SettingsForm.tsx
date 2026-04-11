@@ -39,12 +39,14 @@ interface FormState {
   // Merchant
   name: string;
   whatsappNumber: string;
-  // WhatsApp API
-  whatsappPhoneId: string;
-  whatsappAccessToken: string;
+  // WhatsApp API via Twilio
+  twilioAccountSid: string;
+  twilioAuthToken: string;
   // Razorpay
   razorpayKeyId: string;
   razorpayKeySecret: string;
+  // UPI Direct
+  upiId: string;
   // AI
   aiContext: string;
 }
@@ -241,10 +243,11 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
   const [form, setForm] = React.useState<FormState>({
     name: merchant?.name ?? "",
     whatsappNumber: merchant?.whatsappNumber ?? "",
-    whatsappPhoneId: merchant?.whatsappPhoneId ?? "",
-    whatsappAccessToken: merchant?.whatsappAccessToken ?? "",
+    twilioAccountSid: merchant?.twilioAccountSid ?? "",
+    twilioAuthToken: merchant?.twilioAuthToken ?? "",
     razorpayKeyId: merchant?.razorpayKeyId ?? "",
     razorpayKeySecret: merchant?.razorpayKeySecret ?? "",
+    upiId: merchant?.upiId ?? "",
     aiContext: merchant?.aiContext ?? "",
   });
 
@@ -314,11 +317,11 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
     e.preventDefault();
     patchSettings(
       {
-        name: form.name,
-        whatsappNumber: form.whatsappNumber,
-        whatsappPhoneId: form.whatsappPhoneId,
-        ...(form.whatsappAccessToken.trim() && !form.whatsappAccessToken.includes("•")
-          ? { whatsappAccessToken: form.whatsappAccessToken }
+        name: form.name.trim(),
+        whatsappNumber: form.whatsappNumber.trim(),
+        twilioAccountSid: form.twilioAccountSid,
+        ...(form.twilioAuthToken.trim() && !form.twilioAuthToken.includes("•")
+          ? { twilioAuthToken: form.twilioAuthToken }
           : {}),
       },
       setWhatsappStatus,
@@ -334,9 +337,10 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
         ...(form.razorpayKeySecret.trim() && !form.razorpayKeySecret.includes("•")
           ? { razorpayKeySecret: form.razorpayKeySecret }
           : {}),
+        upiId: form.upiId,
       },
       setRazorpayStatus,
-      "Razorpay settings saved successfully!",
+      "Payment settings saved successfully!",
     );
   };
 
@@ -364,8 +368,8 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
           icon={MessageSquare}
           iconClass="text-green-600"
           bgClass="bg-green-100"
-          title="WhatsApp Configuration"
-          description="Connect your Meta WhatsApp Business API credentials. You can find these in your Meta Developer Dashboard under App → WhatsApp → API Setup."
+          title="Twilio WhatsApp Integration"
+          description="Connect your Twilio credentials to power the WhatsApp shopping assistant."
         />
 
         <Separator />
@@ -393,14 +397,14 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
             {/* WhatsApp Phone Number */}
             <Field
               id="whatsappNumber"
-              label="WhatsApp Phone Number"
+              label="Twilio Sender Number"
               required
-              hint="The phone number registered with your Meta WhatsApp Business Account (include country code, e.g. 919876543210)."
+              hint="Your Twilio WhatsApp sender number (or Sandbox number) formatted like whatsapp:+14155238886."
             >
               <Input
                 id="whatsappNumber"
                 name="whatsappNumber"
-                placeholder="919876543210"
+                placeholder="whatsapp:+14155238886"
                 value={form.whatsappNumber}
                 onChange={handleChange}
                 disabled={whatsappStatus.status === "saving"}
@@ -409,42 +413,42 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              {/* Phone Number ID */}
+              {/* Twilio Account SID */}
               <Field
-                id="whatsappPhoneId"
-                label="Phone Number ID"
-                hint="Found in Meta Developer Dashboard → WhatsApp → API Setup. Looks like: 123456789012345"
+                id="twilioAccountSid"
+                label="Twilio Account SID"
+                hint="Found on your Twilio console homepage. Looks like: ACxxxxxxxxxxxxx"
               >
                 <Input
-                  id="whatsappPhoneId"
-                  name="whatsappPhoneId"
-                  placeholder="123456789012345"
-                  value={form.whatsappPhoneId}
+                  id="twilioAccountSid"
+                  name="twilioAccountSid"
+                  placeholder="ACxxxxxxxxxxxxx"
+                  value={form.twilioAccountSid}
                   onChange={handleChange}
                   disabled={whatsappStatus.status === "saving"}
                   className="font-mono text-sm"
                 />
               </Field>
 
-              {/* Permanent Access Token */}
+              {/* Twilio Auth Token */}
               <Field
-                id="whatsappAccessToken"
-                label="Permanent Access Token"
+                id="twilioAuthToken"
+                label="Twilio Auth Token"
                 hint={
-                  merchant?.whatsappPhoneId
+                  merchant?.twilioAccountSid
                     ? "A token is already saved. Paste a new one only to replace it."
-                    : "Generate from Meta Dashboard. Required to send WhatsApp messages."
+                    : "Kept completely secret. Required to send WhatsApp messages."
                 }
               >
                 <SecretInput
-                  id="whatsappAccessToken"
-                  name="whatsappAccessToken"
+                  id="twilioAuthToken"
+                  name="twilioAuthToken"
                   placeholder={
-                    merchant?.whatsappPhoneId
+                    merchant?.twilioAccountSid
                       ? "Leave blank to keep current token"
-                      : "EAAxxxxxxxxxxxxx..."
+                      : "Enter your Auth Token"
                   }
-                  value={form.whatsappAccessToken}
+                  value={form.twilioAuthToken}
                   onChange={handleChange}
                   disabled={whatsappStatus.status === "saving"}
                 />
@@ -453,18 +457,14 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
 
             {/* Webhook info banner */}
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
-              <strong className="font-semibold">Webhook URL:</strong>{" "}
+              <strong className="font-semibold">Twilio Webhook URL:</strong>{" "}
               <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                https://your-domain.com/api/webhook/whatsapp
+                https://your-domain.com/api/webhooks/whatsapp
               </code>
               <br />
               <span className="mt-1 block text-blue-600">
-                Set this as your callback URL in the Meta Developer Dashboard.
-                The Verify Token must match{" "}
-                <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                  WHATSAPP_VERIFY_TOKEN
-                </code>{" "}
-                in your backend .env.
+                In Twilio Console → Messaging → Senders → WhatsApp senders,
+                paste this URL into the <strong>"When a message comes in"</strong> field.
               </span>
             </div>
 
@@ -489,14 +489,58 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
           icon={CreditCard}
           iconClass="text-blue-600"
           bgClass="bg-blue-100"
-          title="Razorpay Configuration"
-          description="Used to generate UPI/card payment links sent to customers over WhatsApp. Obtain your API keys from the Razorpay Dashboard → Settings → API Keys."
+          title="Payment Configuration"
+          description="Accept payments via Razorpay (cards, UPI, netbanking) or use your personal UPI ID for direct zero-cost payments."
         />
 
         <Separator />
 
         <CardContent className="pt-5">
           <form onSubmit={handleRazorpaySubmit} className="space-y-4">
+
+            {/* ── UPI Direct Section ────────────── */}
+            <div className="rounded-lg border border-green-200 bg-green-50/50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-100">
+                  <span className="text-sm">₹</span>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-green-900">UPI Direct — Zero Cost</p>
+                  <p className="text-xs text-green-700">Accept payments via any UPI app with no gateway fees.</p>
+                </div>
+              </div>
+
+              <Field
+                id="upiId"
+                label="Your UPI ID"
+                hint="Your personal or business UPI ID (e.g. yourname@upi, business@paytm). Customers will pay directly to this."
+              >
+                <Input
+                  id="upiId"
+                  name="upiId"
+                  placeholder="merchant@upi"
+                  value={form.upiId}
+                  onChange={handleChange}
+                  disabled={razorpayStatus.status === "saving"}
+                  className="font-mono text-sm bg-white"
+                  maxLength={80}
+                />
+              </Field>
+            </div>
+
+            {/* ── Divider ─────────────────────── */}
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">
+                  or use Razorpay Gateway
+                </span>
+              </div>
+            </div>
+
+            {/* ── Razorpay Section ─────────────── */}
             <div className="grid gap-4 sm:grid-cols-2">
               {/* Key ID */}
               <Field
@@ -552,25 +596,12 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
               </Field>
             </div>
 
-            {/* Razorpay webhook info */}
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
-              <strong className="font-semibold">Razorpay Webhook URL:</strong>{" "}
-              <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                https://your-domain.com/api/webhook/razorpay
-              </code>
-              <br />
-              <span className="mt-1 block text-blue-600">
-                Register this in Razorpay Dashboard → Settings → Webhooks.
-                Enable the{" "}
-                <code className="rounded bg-blue-100 px-1 py-0.5 font-mono text-blue-800">
-                  order.paid
-                </code>{" "}
-                event. Copy the webhook secret to{" "}
-                <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                  RAZORPAY_WEBHOOK_SECRET
-                </code>{" "}
-                in your backend .env.
-              </span>
+            {/* Payment method info banner */}
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+              <strong className="font-semibold">How it works:</strong>{" "}
+              If Razorpay keys are configured, payment links are auto-generated via Razorpay.
+              If only UPI ID is set, customers get a direct UPI payment link instead (zero fees).
+              Razorpay takes <strong>priority</strong> when both are configured.
             </div>
 
             <SectionFeedback

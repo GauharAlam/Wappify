@@ -1,4 +1,5 @@
-import axios from "axios";
+import twilio from "twilio";
+import { getTwilioConfig, formatWhatsAppNumber } from "./twilio.service";
 
 // ─────────────────────────────────────────────
 // Types
@@ -12,25 +13,6 @@ export interface CatalogProduct {
 }
 
 // ─────────────────────────────────────────────
-// Config
-// ─────────────────────────────────────────────
-
-const WHATSAPP_API_BASE = "https://graph.facebook.com/v19.0";
-
-const getWhatsAppConfig = () => {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-
-  if (!phoneNumberId || !accessToken) {
-    throw new Error(
-      "WHATSAPP_PHONE_NUMBER_ID or WHATSAPP_ACCESS_TOKEN is not set in .env",
-    );
-  }
-
-  return { phoneNumberId, accessToken };
-};
-
-// ─────────────────────────────────────────────
 // Core: Send text message
 // ─────────────────────────────────────────────
 
@@ -38,43 +20,39 @@ export const sendTextMessage = async (
   to: string,
   message: string,
 ): Promise<void> => {
-  const { phoneNumberId, accessToken } = getWhatsAppConfig();
+  const merchantId = process.env.MERCHANT_ID;
+  if (!merchantId) {
+    throw new Error("MERCHANT_ID is not set in .env");
+  }
 
-  const url = `${WHATSAPP_API_BASE}/${phoneNumberId}/messages`;
+  // Fetch Twilio config securely from DB
+  const { accountSid, authToken, whatsappNumber } = await getTwilioConfig(merchantId);
 
-  const payload = {
-    messaging_product: "whatsapp",
-    recipient_type: "individual",
-    to,
-    type: "text",
-    text: {
-      preview_url: false,
-      body: message,
-    },
-  };
+  // Initialize Twilio client
+  const client = twilio(accountSid, authToken);
 
-  console.log(`[WHATSAPP SERVICE] Sending text message to: ${to}`);
-  console.log("[WHATSAPP SERVICE] Payload:", JSON.stringify(payload, null, 2));
+  // Format numbers for Twilio
+  const formattedTo = formatWhatsAppNumber(to);
+  const formattedFrom = formatWhatsAppNumber(whatsappNumber);
+
+  console.log(`[TWILIO SERVICE] Sending text message to: ${formattedTo}`);
 
   try {
-    const response = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+    const response = await client.messages.create({
+      body: message,
+      from: formattedFrom,
+      to: formattedTo,
     });
 
     console.log(
-      "[WHATSAPP SERVICE] Message sent successfully:",
-      JSON.stringify(response.data, null, 2),
+      `[TWILIO SERVICE] Message sent successfully! SID: ${response.sid}`
     );
   } catch (error: any) {
-    const errData = error?.response?.data || error?.message || error;
     console.error(
-      "[WHATSAPP SERVICE] Failed to send message:",
-      JSON.stringify(errData, null, 2),
+      "[TWILIO SERVICE] Failed to send message:",
+      error?.message || error
     );
-    throw new Error(`WhatsApp send failed: ${JSON.stringify(errData)}`);
+    throw new Error(`Twilio send failed: ${error?.message || "Unknown error"}`);
   }
 };
 

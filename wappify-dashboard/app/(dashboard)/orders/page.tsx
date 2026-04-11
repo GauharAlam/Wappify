@@ -58,11 +58,6 @@ async function getOrders(merchantId: string): Promise<SerializedOrder[]> {
 export default async function OrdersPage() {
   const merchant = await getRequiredMerchant();
 
-  // 📝 ONBOARDING CHECK
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
-
   const orders = await getOrders(merchant.id);
 
   return (

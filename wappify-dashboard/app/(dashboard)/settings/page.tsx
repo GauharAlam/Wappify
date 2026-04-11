@@ -17,10 +17,11 @@ export type MerchantSettings = {
   id: string;
   name: string;
   whatsappNumber: string;
-  whatsappPhoneId: string | null;
-  whatsappAccessToken: string | null;
+  twilioAccountSid: string | null;
+  twilioAuthToken: string | null;
   razorpayKeyId: string | null;
   razorpayKeySecret: string | null;
+  upiId: string | null;
   aiContext: string | null;
 };
 
@@ -30,11 +31,6 @@ export type MerchantSettings = {
 
 export default async function SettingsPage() {
   const merchant = await getRequiredMerchant();
-
-  // 📝 ONBOARDING CHECK
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
 
   return (
     <div className="space-y-6 max-w-3xl">

@@ -20,10 +20,11 @@ model Merchant {
   id                  String    @id @default(uuid())
   name                String
   whatsappNumber      String    @unique
-  whatsappPhoneId     String?
-  whatsappAccessToken String?
+  twilioAccountSid    String?
+  twilioAuthToken     String?
   razorpayKeyId       String?
   razorpayKeySecret   String?
+  upiId               String?           // Direct UPI ID (e.g. merchant@upi) — zero-cost alternative to Razorpay
   aiContext           String?   @db.Text
 
   userId              String?

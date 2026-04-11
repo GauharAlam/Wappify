@@ -1,41 +1,43 @@
+import twilio from "twilio";
+
 /**
- * Sends a WhatsApp message using the WhatsApp Cloud API.
+ * Ensures a phone number is formatted for Twilio WhatsApp (whatsapp:+1234567890).
+ */
+const formatWhatsAppNumber = (number: string): string => {
+  let cleaned = number.replace(/\D/g, ""); // Remove non-numeric
+  if (!number.startsWith("whatsapp:")) {
+    return `whatsapp:+${cleaned}`;
+  }
+  return number;
+};
+
+/**
+ * Sends a WhatsApp message using the Twilio API.
  */
 export async function sendWhatsAppMessage(
-  phoneNumberId: string,
-  accessToken: string,
+  accountSid: string,
+  authToken: string,
+  from: string,
   to: string,
   text: string
 ) {
   try {
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: to,
-        type: "text",
-        text: { body: text },
-      }),
+    const client = twilio(accountSid, authToken);
+
+    const formattedFrom = formatWhatsAppNumber(from);
+    const formattedTo = formatWhatsAppNumber(to);
+
+    const response = await client.messages.create({
+      body: text,
+      from: formattedFrom,
+      to: formattedTo,
     });
 
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(`WhatsApp API Error: ${JSON.stringify(data)}`);
-    }
-
-    console.log(`✅ [WhatsApp API] Sent successfully to ${to}`);
-    return data;
+    console.log(`✅ [Twilio API] Sent successfully to ${to}. SID: ${response.sid}`);
+    return response;
     
   } catch (error) {
-    console.error("❌ [WhatsApp API] Error sending message:", error);
+    console.error("❌ [Twilio API] Error sending message:", error);
     throw error;
   }
 }

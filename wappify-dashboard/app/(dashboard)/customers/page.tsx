@@ -108,10 +108,6 @@ async function getCustomersWithDetails(merchantId: string): Promise<SerializedCu
 export default async function CustomersPage() {
   const merchant = await getRequiredMerchant();
 
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
-
   const customers = await getCustomersWithDetails(merchant.id);
 
   return (

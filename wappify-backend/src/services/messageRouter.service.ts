@@ -12,6 +12,7 @@ import {
   updateOrderWithRazorpayLink,
 } from "./order.service";
 import { createPaymentLink } from "./razorpay.service";
+import { generateUpiPaymentLink } from "./upi.service";
 import {
   getConversationHistory,
   addToConversation,
@@ -216,6 +217,48 @@ const getMerchantName = async (): Promise<string> => {
 };
 
 // ─────────────────────────────────────────────
+// Payment Configuration Fetcher
+// Determines which payment method to use:
+// 1. Razorpay (if keys are configured)
+// 2. UPI Direct (if upiId is set — zero cost)
+// ─────────────────────────────────────────────
+
+interface PaymentConfig {
+  mode: "razorpay" | "upi" | "none";
+  upiId?: string;
+  merchantName: string;
+}
+
+const getPaymentConfig = async (): Promise<PaymentConfig> => {
+  const merchantId = process.env.MERCHANT_ID;
+  if (!merchantId) return { mode: "none", merchantName: "Our Store" };
+
+  const merchant = await prisma.merchant.findUnique({
+    where: { id: merchantId },
+    select: {
+      name: true,
+      razorpayKeyId: true,
+      razorpayKeySecret: true,
+      upiId: true,
+    },
+  });
+
+  if (!merchant) return { mode: "none", merchantName: "Our Store" };
+
+  // Prefer Razorpay if fully configured
+  if (merchant.razorpayKeyId && merchant.razorpayKeySecret) {
+    return { mode: "razorpay", merchantName: merchant.name };
+  }
+
+  // Fallback to UPI deep links (zero cost)
+  if (merchant.upiId) {
+    return { mode: "upi", upiId: merchant.upiId, merchantName: merchant.name };
+  }
+
+  return { mode: "none", merchantName: merchant.name };
+};
+
+// ─────────────────────────────────────────────
 // Product Matcher (DB-driven)
 // Fuzzy-matches a query string against the live
 // catalog using substring matching (case-insensitive).
@@ -313,11 +356,27 @@ const handleBuyRequest = async (
     return;
   }
 
+  // ── Step 4: Detect payment method ───────────
+  const paymentConfig = await getPaymentConfig();
+
+  if (paymentConfig.mode === "none") {
+    console.error("[ROUTER] No payment method configured — cannot create order");
+    await sendTextMessage(
+      from,
+      [
+        `😔 Payment abhi setup nahi hua dukaan mein.`,
+        ``,
+        `Kuch der mein try karein — hum jaldi fix kar denge! 🙏`,
+      ].join("\n"),
+    );
+    return;
+  }
+
   try {
-    // ── Step 4: Upsert Customer in DB ──────────
+    // ── Step 5: Upsert Customer in DB ──────────
     const customer = await findOrCreateCustomer(from, customerName);
 
-    // ── Step 5: Create PENDING Order in DB ─────
+    // ── Step 6: Create PENDING Order in DB ─────
     const order = await createPendingOrder({
       merchantId,
       customerId: customer.id,
@@ -326,47 +385,89 @@ const handleBuyRequest = async (
       pricePerUnit: matchedProduct.price,
     });
 
-    // ── Step 6: Get merchant name for description
-    const merchantName = await getMerchantName();
-
-    // ── Step 7: Generate Razorpay Payment Link ──
-    const paymentLink = await createPaymentLink({
-      amountInRupees: matchedProduct.price,
-      orderId: order.id,
-      customerPhone: from,
-      customerName: customerName,
-      description: `${merchantName} — ${matchedProduct.name}`,
-    });
-
-    // ── Step 8: Persist payment link ID to order─
-    await updateOrderWithRazorpayLink(order.id, paymentLink.id);
-
-    // ── Step 9: Send payment link via WhatsApp ──
     const shortOrderId = order.id.slice(0, 8).toUpperCase();
 
-    const message = [
-      `🛒 *Order Summary*`,
-      ``,
-      `📦 *${matchedProduct.name}*`,
-      `💰 Price    : ₹${matchedProduct.price}`,
-      `🔢 Quantity : 1`,
-      `📋 Order ID : #${shortOrderId}`,
-      ``,
-      `✅ *Payment link ready hai!* Neeche tap karein:`,
-      ``,
-      `👉 ${paymentLink.short_url}`,
-      ``,
-      `⏳ Yeh link *24 ghante* mein expire ho jayega.`,
-      ``,
-      `Payment hone ke baad aapko confirmation message milega. 🎉`,
-      `Koi issue ho toh seedha yahan message karein! 😊`,
-    ].join("\n");
+    // ─────────────────────────────────────────
+    // Payment Method: RAZORPAY (Gateway)
+    // Generates a hosted payment link with
+    // automated webhook confirmation.
+    // ─────────────────────────────────────────
+    if (paymentConfig.mode === "razorpay") {
+      console.log(`[ROUTER] Using RAZORPAY for order #${shortOrderId}`);
 
-    await sendTextMessage(from, message);
+      const paymentLink = await createPaymentLink({
+        amountInRupees: matchedProduct.price,
+        orderId: order.id,
+        customerPhone: from,
+        customerName: customerName,
+        description: `${paymentConfig.merchantName} — ${matchedProduct.name}`,
+      });
 
-    console.log(
-      `[ROUTER] ✅ Payment link sent to ${from} for order #${shortOrderId}`,
-    );
+      await updateOrderWithRazorpayLink(order.id, paymentLink.id);
+
+      const message = [
+        `🛒 *Order Summary*`,
+        ``,
+        `📦 *${matchedProduct.name}*`,
+        `💰 Price    : ₹${matchedProduct.price}`,
+        `🔢 Quantity : 1`,
+        `📋 Order ID : #${shortOrderId}`,
+        ``,
+        `✅ *Payment link ready hai!* Neeche tap karein:`,
+        ``,
+        `👉 ${paymentLink.short_url}`,
+        ``,
+        `⏳ Yeh link *24 ghante* mein expire ho jayega.`,
+        ``,
+        `Payment hone ke baad aapko confirmation message milega. 🎉`,
+        `Koi issue ho toh seedha yahan message karein! 😊`,
+      ].join("\n");
+
+      await sendTextMessage(from, message);
+      console.log(`[ROUTER] ✅ Razorpay link sent to ${from} for order #${shortOrderId}`);
+    }
+
+    // ─────────────────────────────────────────
+    // Payment Method: UPI DIRECT (Zero Cost)
+    // Generates a UPI deep link — customer pays
+    // directly via any UPI app. No gateway fees.
+    // ─────────────────────────────────────────
+    if (paymentConfig.mode === "upi") {
+      console.log(`[ROUTER] Using UPI DIRECT for order #${shortOrderId}`);
+
+      const upiLink = generateUpiPaymentLink({
+        upiId: paymentConfig.upiId!,
+        merchantName: paymentConfig.merchantName,
+        amountInRupees: matchedProduct.price,
+        orderId: order.id,
+        productName: matchedProduct.name,
+      });
+
+      const message = [
+        `🛒 *Order Summary*`,
+        ``,
+        `📦 *${matchedProduct.name}*`,
+        `💰 Price    : ₹${matchedProduct.price}`,
+        `🔢 Quantity : 1`,
+        `📋 Order ID : #${shortOrderId}`,
+        ``,
+        `💳 *UPI se pay karein:*`,
+        ``,
+        `📲 UPI ID: *${paymentConfig.upiId}*`,
+        `💰 Amount: *₹${matchedProduct.price}*`,
+        ``,
+        `👉 *GPay / PhonePe / Paytm* koi bhi app se pay karein:`,
+        `${upiLink.deepLink}`,
+        ``,
+        `✅ Payment ke baad apna *UTR number / screenshot* yahan bhejein confirmaton ke liye.`,
+        ``,
+        `Koi issue ho toh seedha yahan message karein! 😊`,
+      ].join("\n");
+
+      await sendTextMessage(from, message);
+      console.log(`[ROUTER] ✅ UPI link sent to ${from} for order #${shortOrderId}`);
+    }
+
   } catch (error: any) {
     console.error("[ROUTER] ❌ Buy flow failed:");
     console.error("[ROUTER] Message:", error?.message || "Unknown error");

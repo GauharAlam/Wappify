@@ -42,13 +42,6 @@ function OrdersTableSkeleton() {
 export default async function DashboardPage() {
   const merchant = await getRequiredMerchant();
   
-  // ── ONBOARDING CHECK ───────────────────
-  // If no merchant profile exists OR merchant hasn't connected WhatsApp/Payments,
-  // we redirect them to the Zero-to-Hero onboarding experience.
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
-  
   return (
     <div className="space-y-6">
       {/* ── Page Header ────────────────────── */}

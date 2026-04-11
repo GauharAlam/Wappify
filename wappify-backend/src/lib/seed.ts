@@ -53,9 +53,9 @@ export const ensureSeedData = async (): Promise<void> => {
         data: {
           id: merchantId,
           name: "StyleHouse India",
-          whatsappNumber: phoneId,
-          whatsappPhoneId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? null,
-          whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? null,
+          whatsappNumber: "whatsapp:+14155238886",
+          twilioAccountSid: "AC_MOCK_ACCOUNT_SID",
+          twilioAuthToken: "MOCK_AUTH_TOKEN",
           razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? null,
           razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? null,
           aiContext:
@@ -67,8 +67,8 @@ export const ensureSeedData = async (): Promise<void> => {
       merchant = await prisma.merchant.update({
         where: { id: merchantId },
         data: {
-          whatsappPhoneId: process.env.WHATSAPP_PHONE_NUMBER_ID ?? undefined,
-          whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN ?? undefined,
+          twilioAccountSid: "AC_MOCK_ACCOUNT_SID",
+          twilioAuthToken: "MOCK_AUTH_TOKEN",
           razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? undefined,
           razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? undefined,
         },

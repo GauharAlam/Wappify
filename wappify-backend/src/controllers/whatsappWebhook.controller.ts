@@ -10,55 +10,8 @@ const safeStringify = (value: unknown): string => {
 };
 
 // ─────────────────────────────────────────────
-// GET /api/webhooks/whatsapp
-// Meta webhook verification handshake
-// ─────────────────────────────────────────────
-
-export const verifyWhatsAppWebhook = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): void => {
-  try {
-    const mode = String(req.query["hub.mode"] || "");
-    const token = String(req.query["hub.verify_token"] || "");
-    const challenge = String(req.query["hub.challenge"] || "");
-
-    console.log("[WHATSAPP VERIFY] Incoming verification request");
-    console.log("[WHATSAPP VERIFY] Query params:", safeStringify(req.query));
-
-    if (!process.env.WHATSAPP_VERIFY_TOKEN) {
-      throw new Error(
-        "WHATSAPP_VERIFY_TOKEN is missing in environment variables",
-      );
-    }
-
-    if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
-      console.log("[WHATSAPP VERIFY] ✅ Webhook verified successfully");
-      res.status(200).send(challenge);
-      return;
-    }
-
-    console.warn("[WHATSAPP VERIFY] ❌ Verification failed");
-    console.warn("[WHATSAPP VERIFY] Received mode   :", mode);
-    console.warn("[WHATSAPP VERIFY] Received token  :", token);
-    console.warn(
-      "[WHATSAPP VERIFY] Expected token :",
-      process.env.WHATSAPP_VERIFY_TOKEN,
-    );
-
-    res.status(403).json({
-      success: false,
-      message: "Webhook verification failed: token mismatch",
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ─────────────────────────────────────────────
 // POST /api/webhooks/whatsapp
-// Receives all incoming WhatsApp events
+// Receives all incoming WhatsApp events via Twilio
 // ─────────────────────────────────────────────
 
 export const receiveWhatsAppWebhook = async (
@@ -84,36 +37,27 @@ export const receiveWhatsAppWebhook = async (
 
     const body = req.body;
 
-    // ── Guard: valid JSON body ─────────────────
+    // ── Guard: valid Twilio body ───────────────
+    // Twilio sends urlencoded form data, which express.urlencoded puts in req.body
     if (!body || typeof body !== "object") {
-      console.warn("[WHATSAPP POST] Empty or invalid JSON body received");
-      res.status(400).json({
-        success: false,
-        message: "Invalid request body",
-      });
+      console.warn("[WHATSAPP POST] Empty or invalid body received");
+      res.status(400).send("Invalid request body");
       return;
     }
 
-    // ── Guard: must be a WhatsApp Business event ─
-    if (body.object !== "whatsapp_business_account") {
+    // Twilio webhooks usually include SmsMessageSid or MessageSid
+    if (!body.SmsMessageSid && !body.MessageSid && !body.MessageStatus) {
       console.warn(
-        "[WHATSAPP POST] Unexpected object type — ignoring:",
-        body.object,
+        "[WHATSAPP POST] Unexpected payload — ignoring:",
+        safeStringify(body)
       );
-      res.status(200).json({
-        success: true,
-        message: "Event ignored: not a WhatsApp Business Account event",
-      });
+      res.status(200).send("Event ignored");
       return;
     }
 
-    // ── Always respond 200 to Meta immediately ───
-    // Meta will retry if it doesn't get a 200 within ~20 seconds.
-    // We acknowledge first, then process asynchronously.
-    res.status(200).json({
-      success: true,
-      message: "Webhook event received",
-    });
+    // ── Always respond to Twilio immediately ───
+    // Twilio expects an empty TwiML or 200 OK
+    res.status(200).type('text/xml').send('<Response></Response>');
 
     // ── Enqueue the payload into the Database ────
     await prisma.webhookEvent.create({

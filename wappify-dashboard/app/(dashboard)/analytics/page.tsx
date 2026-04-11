@@ -14,11 +14,6 @@ export const metadata: Metadata = {
 export default async function AnalyticsPage() {
   const merchant = await getRequiredMerchant();
 
-  // 📝 ONBOARDING CHECK
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
-
   // ── 1. Fetch Data ─────────────────────────
   const orders = await prisma.order.findMany({
     where: { merchantId: merchant.id, status: "PAID" },

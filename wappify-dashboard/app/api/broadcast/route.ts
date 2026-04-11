@@ -20,14 +20,15 @@ export async function POST(req: Request) {
         where: { userId: session.user.id }
     });
 
-    if (!merchant || !merchant.whatsappPhoneId || !merchant.whatsappAccessToken) {
-        return NextResponse.json({ error: "WhatsApp API not configured" }, { status: 400 });
+    if (!merchant || !merchant.twilioAccountSid || !merchant.twilioAuthToken || !merchant.whatsappNumber) {
+        return NextResponse.json({ error: "Twilio WhatsApp API not configured" }, { status: 400 });
     }
 
     // Trigger the send
     await sendWhatsAppMessage(
-        merchant.whatsappPhoneId,
-        merchant.whatsappAccessToken,
+        merchant.twilioAccountSid,
+        merchant.twilioAuthToken,
+        merchant.whatsappNumber,
         to,
         message
     );

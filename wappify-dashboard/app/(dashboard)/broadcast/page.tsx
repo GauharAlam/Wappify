@@ -12,11 +12,6 @@ export const metadata: Metadata = {
 export default async function BroadcastPage() {
   const merchant = await getRequiredMerchant();
 
-  // 📝 ONBOARDING CHECK
-  if (!merchant || !merchant.whatsappPhoneId || !merchant.razorpayKeyId) {
-    redirect("/onboarding");
-  }
-
   // ── 1. Fetch Customers ────────────────────
   // We fetch unique customers associated with this merchant's orders,
   // or all customers if we want to allow broader reach.

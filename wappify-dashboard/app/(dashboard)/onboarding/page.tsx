@@ -33,8 +33,9 @@ const STEPS: Step[] = ["business", "whatsapp", "payments", "ai", "success"];
 interface OnboardingData {
   name: string;
   whatsappNumber: string;
-  whatsappPhoneId: string;
-  whatsappAccessToken: string;
+  twilioAccountSid: string;
+  twilioAuthToken: string;
+  upiId: string;
   razorpayKeyId: string;
   razorpayKeySecret: string;
   aiContext: string;
@@ -75,8 +76,9 @@ export default function OnboardingPage() {
   const [data, setData] = React.useState<OnboardingData>({
     name: "",
     whatsappNumber: "",
-    whatsappPhoneId: "",
-    whatsappAccessToken: "",
+    twilioAccountSid: "",
+    twilioAuthToken: "",
+    upiId: "",
     razorpayKeyId: "",
     razorpayKeySecret: "",
     aiContext: "",
@@ -182,10 +184,10 @@ export default function OnboardingPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="wa">WhatsApp Business Number</Label>
+                        <Label htmlFor="wa">Twilio Sender Number</Label>
                         <Input
                           id="wa"
-                          placeholder="919876543210"
+                          placeholder="whatsapp:+14155238886"
                           value={data.whatsappNumber}
                           onChange={(e) => setData({ ...data, whatsappNumber: e.target.value })}
                         />
@@ -205,29 +207,29 @@ export default function OnboardingPage() {
                     <div className="space-y-1">
                       <h2 className="text-xl font-semibold flex items-center gap-2">
                         <MessageSquare className="h-5 w-5 text-green-500" />
-                        WhatsApp API Setup
+                        Twilio Integration
                       </h2>
-                      <p className="text-sm text-neutral-500">Connect your Meta Developer credentials.</p>
+                      <p className="text-sm text-neutral-500">Connect your Twilio account to send WhatsApp messages.</p>
                     </div>
 
                     <div className="space-y-4 pt-4">
                       <div className="space-y-2">
-                        <Label htmlFor="phoneId">Phone Number ID</Label>
+                        <Label htmlFor="accountSid">Twilio Account SID</Label>
                         <Input
-                          id="phoneId"
-                          placeholder="Found in Meta App Settings"
-                          value={data.whatsappPhoneId}
-                          onChange={(e) => setData({ ...data, whatsappPhoneId: e.target.value })}
+                          id="accountSid"
+                          placeholder="ACxxxxxxxxxxxxxx..."
+                          value={data.twilioAccountSid}
+                          onChange={(e) => setData({ ...data, twilioAccountSid: e.target.value })}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="token">Permanent Access Token</Label>
+                        <Label htmlFor="authToken">Twilio Auth Token</Label>
                         <Input
-                          id="token"
+                          id="authToken"
                           type="password"
-                          placeholder="EAA..."
-                          value={data.whatsappAccessToken}
-                          onChange={(e) => setData({ ...data, whatsappAccessToken: e.target.value })}
+                          placeholder="Keep it secret"
+                          value={data.twilioAuthToken}
+                          onChange={(e) => setData({ ...data, twilioAuthToken: e.target.value })}
                         />
                       </div>
                     </div>
@@ -245,30 +247,75 @@ export default function OnboardingPage() {
                     <div className="space-y-1">
                       <h2 className="text-xl font-semibold flex items-center gap-2">
                         <CreditCard className="h-5 w-5 text-blue-500" />
-                        Razorpay Integration
+                        Payment Setup
                       </h2>
-                      <p className="text-sm text-neutral-500">Accept UPI and Cards securely.</p>
+                      <p className="text-sm text-neutral-500">Choose how you want to accept payments from customers.</p>
                     </div>
 
-                    <div className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="key">Razorpay Key ID</Label>
-                        <Input
-                          id="key"
-                          placeholder="rzp_live_..."
-                          value={data.razorpayKeyId}
-                          onChange={(e) => setData({ ...data, razorpayKeyId: e.target.value })}
-                        />
+                    {/* UPI Direct — Recommended for starting out */}
+                    <div className="rounded-lg border-2 border-green-300 bg-green-50/50 p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-100">
+                          <span className="text-sm font-bold">₹</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-green-900">UPI Direct — Zero Fees ✨</p>
+                          <p className="text-xs text-green-700">Payments go straight to your UPI. No middleman, no charges.</p>
+                        </div>
+                        <span className="text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full">RECOMMENDED</span>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="secret">Razorpay Key Secret</Label>
+                        <Label htmlFor="upiId">Your UPI ID</Label>
                         <Input
-                          id="secret"
-                          type="password"
-                          placeholder="Keep it secret"
-                          value={data.razorpayKeySecret}
-                          onChange={(e) => setData({ ...data, razorpayKeySecret: e.target.value })}
+                          id="upiId"
+                          placeholder="yourname@upi or business@paytm"
+                          value={data.upiId}
+                          onChange={(e) => setData({ ...data, upiId: e.target.value })}
+                          className="font-mono text-sm bg-white"
                         />
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-neutral-50 px-2 text-neutral-400">
+                          or add Razorpay later
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Razorpay — Optional upgrade */}
+                    <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3 opacity-80 hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-neutral-400" />
+                        <p className="text-sm font-medium text-neutral-600">Razorpay Gateway (Optional)</p>
+                        <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">Skip for now</span>
+                      </div>
+                      <div className="space-y-3 pt-1">
+                        <div className="space-y-2">
+                          <Label htmlFor="key" className="text-xs text-neutral-500">Razorpay Key ID</Label>
+                          <Input
+                            id="key"
+                            placeholder="rzp_live_..."
+                            value={data.razorpayKeyId}
+                            onChange={(e) => setData({ ...data, razorpayKeyId: e.target.value })}
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="secret" className="text-xs text-neutral-500">Razorpay Key Secret</Label>
+                          <Input
+                            id="secret"
+                            type="password"
+                            placeholder="Keep it secret"
+                            value={data.razorpayKeySecret}
+                            onChange={(e) => setData({ ...data, razorpayKeySecret: e.target.value })}
+                          />
+                        </div>
                       </div>
                     </div>
                   </motion.div>

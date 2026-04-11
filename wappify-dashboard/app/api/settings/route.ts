@@ -18,10 +18,11 @@ export async function GET() {
         id: true,
         name: true,
         whatsappNumber: true,
-        whatsappPhoneId: true,
-        whatsappAccessToken: true, // Fetch to mask it
+        twilioAccountSid: true,
+        twilioAuthToken: true, // Fetch to mask it
         razorpayKeyId: true,
         razorpayKeySecret: true, // Fetch to mask it
+        upiId: true,
         aiContext: true,
         createdAt: true,
         updatedAt: true,
@@ -41,7 +42,7 @@ export async function GET() {
 
     const data = {
       ...merchant,
-      whatsappAccessToken: mask(merchant.whatsappAccessToken),
+      twilioAuthToken: mask(merchant.twilioAuthToken),
       razorpayKeySecret: mask(merchant.razorpayKeySecret),
       createdAt: merchant.createdAt.toISOString(),
       updatedAt: merchant.updatedAt.toISOString(),
@@ -78,10 +79,11 @@ export async function PATCH(req: NextRequest) {
     const {
       name,
       whatsappNumber,
-      whatsappPhoneId,
-      whatsappAccessToken,
+      twilioAccountSid,
+      twilioAuthToken,
       razorpayKeyId,
       razorpayKeySecret,
+      upiId,
       aiContext,
     } = body;
 
@@ -97,9 +99,9 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    if (typeof whatsappAccessToken === "string" && whatsappAccessToken.length > MAX_TOKEN_LENGTH) {
+    if (typeof twilioAuthToken === "string" && twilioAuthToken.length > MAX_TOKEN_LENGTH) {
       return NextResponse.json(
-        { success: false, message: "WhatsApp access token exceeds maximum allowed length." },
+        { success: false, message: "Twilio auth token exceeds maximum allowed length." },
         { status: 400 }
       );
     }
@@ -129,14 +131,12 @@ export async function PATCH(req: NextRequest) {
       updateData.whatsappNumber = whatsappNumber.trim();
     }
 
-    if (typeof whatsappPhoneId === "string") {
-      updateData.whatsappPhoneId = whatsappPhoneId.trim() || null;
+    if (typeof twilioAccountSid === "string") {
+      updateData.twilioAccountSid = twilioAccountSid.trim() || null;
     }
 
-    // Only update token if a non-empty value was explicitly provided.
-    // An empty string means "don't change it".
-    if (typeof whatsappAccessToken === "string" && whatsappAccessToken.trim()) {
-      updateData.whatsappAccessToken = whatsappAccessToken.trim();
+    if (typeof twilioAuthToken === "string" && twilioAuthToken.trim()) {
+      updateData.twilioAuthToken = twilioAuthToken.trim();
     }
 
     if (typeof razorpayKeyId === "string") {
@@ -145,6 +145,10 @@ export async function PATCH(req: NextRequest) {
 
     if (typeof razorpayKeySecret === "string" && razorpayKeySecret.trim()) {
       updateData.razorpayKeySecret = razorpayKeySecret.trim();
+    }
+
+    if (typeof upiId === "string") {
+      updateData.upiId = upiId.trim() || null;
     }
 
     if (typeof aiContext === "string") {
@@ -165,7 +169,7 @@ export async function PATCH(req: NextRequest) {
         id: true,
         name: true,
         whatsappNumber: true,
-        whatsappPhoneId: true,
+        twilioAccountSid: true,
         razorpayKeyId: true,
         aiContext: true,
         updatedAt: true,

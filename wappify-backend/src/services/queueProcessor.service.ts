@@ -12,56 +12,44 @@ const safeStringify = (value: unknown): string => {
 
 /**
  * Robustly processes a single WebhookEvent.
+ * Twilio payloads are flat form-data objects.
  */
 async function processJob(jobId: string, payload: any) {
-  const entries = Array.isArray(payload.entry) ? payload.entry : [];
+  // ── Delivery / read status updates ─────
+  if (payload.MessageStatus || payload.SmsStatus) {
+    // Can log robustly or update database status
+    // console.log(`[QUEUE] Status ${payload.MessageStatus} for ${payload.MessageSid}`);
+    return;
+  }
 
-  for (const entry of entries) {
-    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+  // ── Incoming messages ──────────────────
+  const from: string = payload.From || "";
+  const messageId: string = payload.SmsMessageSid || payload.MessageSid || "";
+  const customerName: string | undefined = payload.ProfileName || undefined;
+  const numMedia: number = parseInt(payload.NumMedia || "0", 10);
 
-    for (const change of changes) {
-      const value = change?.value;
+  if (!from) return;
 
-      // ── Incoming messages ──────────────────
-      if (Array.isArray(value?.messages)) {
-        const contacts: any[] = Array.isArray(value?.contacts)
-          ? value.contacts
-          : [];
+  console.log(`[QUEUE PROCESSOR] Processing message ${messageId} from ${from}`);
 
-        for (const message of value.messages) {
-          const from: string = message?.from || "";
-          const messageId: string = message?.id || "";
-          const timestamp: string = message?.timestamp || "";
-          const type: string = message?.type || "";
+  // Handle Media messages
+  if (numMedia > 0) {
+    const contentType: string = payload.MediaContentType0 || "";
+    let mediaType = "file";
+    
+    if (contentType.startsWith("image/")) mediaType = "image";
+    else if (contentType.startsWith("video/")) mediaType = "video";
+    else if (contentType.startsWith("audio/")) mediaType = "audio";
+    else if (contentType.includes("document") || contentType.includes("pdf")) mediaType = "document";
+    
+    await sendMediaAcknowledgement(from, mediaType);
+    return;
+  }
 
-          const contact = contacts.find((c: any) => c?.wa_id === from);
-          const customerName: string | undefined =
-            contact?.profile?.name || undefined;
-
-          console.log(`[QUEUE PROCESSOR] Processing message ${messageId} from ${from}`);
-
-          if (type === "text") {
-            const textBody: string = message?.text?.body || "";
-            if (from && textBody) {
-              await routeMessage(from, textBody, customerName);
-            }
-          } else {
-            const mediaTypes = ["image", "video", "audio", "document", "sticker"];
-            if (from && mediaTypes.includes(type)) {
-              await sendMediaAcknowledgement(from, type);
-            }
-          }
-        }
-      }
-
-      // ── Delivery / read status updates ─────
-      if (Array.isArray(value?.statuses)) {
-        for (const status of value.statuses) {
-           // Can log robustly or update database status
-           // console.log(`[QUEUE] Status ${status.status} for ${status.id}`);
-        }
-      }
-    }
+  // Handle Text messages
+  const textBody: string = payload.Body || "";
+  if (textBody) {
+    await routeMessage(from, textBody.trim(), customerName);
   }
 }
 
