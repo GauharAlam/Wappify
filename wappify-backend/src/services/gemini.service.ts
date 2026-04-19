@@ -92,8 +92,7 @@ Always end your reply with a gentle nudge to help them take the next step.
 // Fetch merchant + products for context
 // ─────────────────────────────────────────────
 
-export const getMerchantContextData = async (): Promise<MerchantContextData> => {
-  const merchantId = process.env.MERCHANT_ID;
+export const getMerchantContextData = async (merchantId: string): Promise<MerchantContextData> => {
 
   if (!merchantId) {
     return {
@@ -146,6 +145,7 @@ export const getMerchantContextData = async (): Promise<MerchantContextData> => 
 // ─────────────────────────────────────────────
 
 export const generateAIResponse = async (
+  merchantId: string,
   userMessage: string,
   conversationHistory: Content[] = [],
 ): Promise<string> => {
@@ -153,7 +153,7 @@ export const generateAIResponse = async (
     const genAI = getGeminiClient();
 
     // Build dynamic system instruction from DB
-    const contextData = await getMerchantContextData();
+    const contextData = await getMerchantContextData(merchantId);
     const systemInstruction = buildMerchantContext(contextData);
 
     const model = genAI.getGenerativeModel({
@@ -184,6 +184,7 @@ export const generateAIResponse = async (
     const result = await chat.sendMessage(userMessage);
     const response = result.response;
     const text = response.text();
+    const tokenCount = response.usageMetadata?.totalTokenCount || 0;
 
     if (!text || text.trim() === "") {
       console.warn(
@@ -192,7 +193,18 @@ export const generateAIResponse = async (
       return "Mujhe samajh nahi aaya! 😅 Kya aap dobara pooch sakte hain? Aap *1* type karein catalog dekhne ke liye ya apna sawaal aur clearly poochein!";
     }
 
-    console.log("[GEMINI] Response received successfully:", text);
+    console.log(`[GEMINI] Response received successfully (${tokenCount} tokens):`, text);
+
+    // Track usage in the database asynchronously
+    if (merchantId && tokenCount > 0) {
+      prisma.merchant.update({
+        where: { id: merchantId },
+        data: { geminiTokensUsed: { increment: tokenCount } },
+      }).catch(err => {
+        console.error("[GEMINI METRICS] Failed to track token count:", err?.message || err);
+      });
+    }
+
     return text;
   } catch (error: any) {
     console.error("[GEMINI ERROR] Failed to generate AI response");

@@ -8,119 +8,81 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-enum OrderStatus {
-  PENDING
-  PAID
-  SHIPPED
-  DELIVERED
-  CANCELLED
-}
-
 model Merchant {
-  id                  String    @id @default(uuid())
-  name                String
-  whatsappNumber      String    @unique
-  twilioAccountSid    String?
-  twilioAuthToken     String?
-  razorpayKeyId       String?
-  razorpayKeySecret   String?
-  upiId               String?           // Direct UPI ID (e.g. merchant@upi) — zero-cost alternative to Razorpay
-  aiContext           String?   @db.Text
+  id                 String        @id @default(uuid())
+  name               String
+  whatsappNumber     String        @unique
+  storeCode          String        @unique @default(cuid()) // Short code for wa.me routing (e.g. "STYLE123")
+  whatsappConnected  Boolean       @default(false)
+  razorpayKeyId      String?
+  razorpayKeySecret  String?
+  aiContext          String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  upiId              String?
+  // @deprecated — Twilio replaced by centralised Meta Cloud API
+  twilioAccountSid   String?
+  // @deprecated — Twilio replaced by centralised Meta Cloud API
+  twilioAuthToken    String?
+  geminiTokensUsed   Int           @default(0)
+  messagesSent       Int           @default(0)  // Renamed from twilioMessagesSent
+  userId             String?
+  user               User?         @relation(fields: [userId], references: [id])
+  orders             Order[]
+  products           Product[]
+  subscription       Subscription?
 
-  userId              String?
-  user                User?     @relation(fields: [userId], references: [id])
-
-  products            Product[]
-  orders              Order[]
-  subscription        Subscription?
-
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-}
-
-// ─────────────────────────────────────────────
-// Subscription Billing
-// ─────────────────────────────────────────────
-
-enum SubscriptionStatus {
-  CREATED
-  AUTHENTICATED
-  ACTIVE
-  PENDING
-  HALTED
-  CANCELLED
-  EXPIRED
-  PAUSED
-}
-
-enum PlanTier {
-  STARTER
-  PRO
-  ENTERPRISE
+  @@index([storeCode])
 }
 
 model Subscription {
-  id                      String             @id @default(uuid())
-  merchantId              String             @unique
-  merchant                Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-
-  planTier                PlanTier           @default(STARTER)
-  status                  SubscriptionStatus @default(CREATED)
-
-  // Razorpay identifiers
-  razorpaySubscriptionId  String?            @unique
-  razorpayPlanId          String?
-  razorpayCustomerId      String?
-
-  // Billing cycle
-  currentPeriodStart      DateTime?
-  currentPeriodEnd        DateTime?
-
-  // Trial
-  trialEndsAt             DateTime?
-
-  cancelledAt             DateTime?
-
-  createdAt               DateTime           @default(now())
-  updatedAt               DateTime           @updatedAt
-}
-
-enum UserRole {
-  USER
-  ADMIN
+  id                     String             @id @default(uuid())
+  merchantId             String             @unique
+  planTier               PlanTier           @default(STARTER)
+  status                 SubscriptionStatus @default(CREATED)
+  paymentMethod          String             @default("RAZORPAY")
+  upiTransactionRef      String?            @unique
+  razorpaySubscriptionId String?            @unique
+  razorpayPlanId         String?
+  razorpayCustomerId     String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialEndsAt            DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  merchant               Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?    @unique
   emailVerified DateTime?
   image         String?
   password      String?
+  role          UserRole   @default(USER)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   accounts      Account[]
-  sessions      Session[]
   merchants     Merchant[]
-  role          UserRole  @default(USER)
-
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?  @db.Text
-  access_token       String?  @db.Text
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?  @db.Text
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -145,60 +107,107 @@ model Customer {
   id        String   @id @default(uuid())
   waId      String   @unique
   name      String?
-
-  orders    Order[]
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orders    Order[]
 }
 
 model Product {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   merchantId  String
-  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-
   name        String
-  description String?  @db.Text
-  price       Decimal  @db.Decimal(10, 2)
-  currency    String   @default("INR")
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  currency    String      @default("INR")
   imageUrl    String?
-  stock       Int      @default(0)
-  isActive    Boolean  @default(true)
-
+  stock       Int         @default(0)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 }
 
 model Order {
   id                String      @id @default(uuid())
   merchantId        String
-  merchant          Merchant    @relation(fields: [merchantId], references: [id])
   customerId        String
-  customer          Customer    @relation(fields: [customerId], references: [id])
-
   status            OrderStatus @default(PENDING)
   totalAmount       Decimal     @db.Decimal(10, 2)
-
   razorpayOrderId   String?     @unique
   razorpayPaymentId String?     @unique
-
-  items             OrderItem[]
-
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+  customer          Customer    @relation(fields: [customerId], references: [id])
+  merchant          Merchant    @relation(fields: [merchantId], references: [id])
+  items             OrderItem[]
 }
 
 model OrderItem {
   id          String  @id @default(uuid())
   orderId     String
-  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   productId   String
-  product     Product @relation(fields: [productId], references: [id])
-
   quantity    Int
   priceAtTime Decimal @db.Decimal(10, 2)
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+}
+
+model WebhookEvent {
+  id        String    @id @default(uuid())
+  payload   Json
+  status    JobStatus @default(PENDING)
+  error     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  merchantId   String
+  customerWaId String
+  sender       String
+  message      String
+  createdAt    DateTime @default(now())
+
+  @@index([merchantId, customerWaId])
+  @@index([merchantId, createdAt])
+}
+
+model PlatformSettings {
+  id         String   @id @default("global")
+  adminUpiId String?
+  updatedAt  DateTime @updatedAt
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum SubscriptionStatus {
+  CREATED
+  AUTHENTICATED
+  ACTIVE
+  PENDING
+  HALTED
+  CANCELLED
+  EXPIRED
+  PAUSED
+}
+
+enum PlanTier {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum UserRole {
+  USER
+  ADMIN
 }
 
 enum JobStatus {
@@ -206,29 +215,4 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
-}
-
-model WebhookEvent {
-  id        String    @id @default(uuid())
-  payload   Json
-  status    JobStatus @default(PENDING)
-  error     String?   @db.Text
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-}
-
-// ─────────────────────────────────────────────
-// Chat Message Log (for CRM)
-// ─────────────────────────────────────────────
-
-model ChatMessage {
-  id           String   @id @default(uuid())
-  merchantId   String
-  customerWaId String
-  sender       String   // "customer" or "bot"
-  message      String   @db.Text
-  createdAt    DateTime @default(now())
-
-  @@index([merchantId, customerWaId])
-  @@index([merchantId, createdAt])
 }

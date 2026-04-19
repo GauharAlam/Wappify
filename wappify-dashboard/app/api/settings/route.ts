@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { Prisma } from "@prisma/client";
 
 export async function GET() {
   const session = await auth();
@@ -18,8 +19,8 @@ export async function GET() {
         id: true,
         name: true,
         whatsappNumber: true,
-        twilioAccountSid: true,
-        twilioAuthToken: true, // Fetch to mask it
+        storeCode: true,
+        whatsappConnected: true,
         razorpayKeyId: true,
         razorpayKeySecret: true, // Fetch to mask it
         upiId: true,
@@ -42,7 +43,6 @@ export async function GET() {
 
     const data = {
       ...merchant,
-      twilioAuthToken: mask(merchant.twilioAuthToken),
       razorpayKeySecret: mask(merchant.razorpayKeySecret),
       createdAt: merchant.createdAt.toISOString(),
       updatedAt: merchant.updatedAt.toISOString(),
@@ -79,8 +79,6 @@ export async function PATCH(req: NextRequest) {
     const {
       name,
       whatsappNumber,
-      twilioAccountSid,
-      twilioAuthToken,
       razorpayKeyId,
       razorpayKeySecret,
       upiId,
@@ -95,13 +93,6 @@ export async function PATCH(req: NextRequest) {
     if (typeof name === "string" && name.length > MAX_NAME_LENGTH) {
       return NextResponse.json(
         { success: false, message: `Business name must be under ${MAX_NAME_LENGTH} characters.` },
-        { status: 400 }
-      );
-    }
-
-    if (typeof twilioAuthToken === "string" && twilioAuthToken.length > MAX_TOKEN_LENGTH) {
-      return NextResponse.json(
-        { success: false, message: "Twilio auth token exceeds maximum allowed length." },
         { status: 400 }
       );
     }
@@ -129,14 +120,6 @@ export async function PATCH(req: NextRequest) {
 
     if (typeof whatsappNumber === "string" && whatsappNumber.trim()) {
       updateData.whatsappNumber = whatsappNumber.trim();
-    }
-
-    if (typeof twilioAccountSid === "string") {
-      updateData.twilioAccountSid = twilioAccountSid.trim() || null;
-    }
-
-    if (typeof twilioAuthToken === "string" && twilioAuthToken.trim()) {
-      updateData.twilioAuthToken = twilioAuthToken.trim();
     }
 
     if (typeof razorpayKeyId === "string") {
@@ -187,6 +170,14 @@ export async function PATCH(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return NextResponse.json(
+          { success: false, message: "This WhatsApp number or Twilio account is already linked to another store." },
+          { status: 400 }
+        );
+      }
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     console.error("[API /settings PATCH] Error:", message);
     return NextResponse.json(

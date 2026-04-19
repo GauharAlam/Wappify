@@ -25,11 +25,11 @@ import { prisma } from "../lib/prisma";
 // ─────────────────────────────────────────────
 
 const logChatMessage = (
+  merchantId: string,
   customerWaId: string,
   sender: "customer" | "bot",
   message: string,
 ): void => {
-  const merchantId = process.env.MERCHANT_ID;
   if (!merchantId) return;
 
   // Fire-and-forget — don't block the message flow
@@ -143,8 +143,7 @@ interface DBProduct {
 /**
  * Fetches all active products with stock > 0 from the database.
  */
-const getActiveProducts = async (): Promise<DBProduct[]> => {
-  const merchantId = process.env.MERCHANT_ID;
+const getActiveProducts = async (merchantId: string): Promise<DBProduct[]> => {
 
   const products = await prisma.product.findMany({
     where: {
@@ -174,8 +173,7 @@ const getActiveProducts = async (): Promise<DBProduct[]> => {
 /**
  * Fetches ALL active products (including out-of-stock) for matching.
  */
-const getAllActiveProducts = async (): Promise<DBProduct[]> => {
-  const merchantId = process.env.MERCHANT_ID;
+const getAllActiveProducts = async (merchantId: string): Promise<DBProduct[]> => {
 
   const products = await prisma.product.findMany({
     where: {
@@ -204,8 +202,7 @@ const getAllActiveProducts = async (): Promise<DBProduct[]> => {
 /**
  * Fetches the merchant name from the database.
  */
-const getMerchantName = async (): Promise<string> => {
-  const merchantId = process.env.MERCHANT_ID;
+const getMerchantName = async (merchantId: string): Promise<string> => {
   if (!merchantId) return "Our Store";
 
   const merchant = await prisma.merchant.findUnique({
@@ -229,8 +226,7 @@ interface PaymentConfig {
   merchantName: string;
 }
 
-const getPaymentConfig = async (): Promise<PaymentConfig> => {
-  const merchantId = process.env.MERCHANT_ID;
+const getPaymentConfig = async (merchantId: string): Promise<PaymentConfig> => {
   if (!merchantId) return { mode: "none", merchantName: "Our Store" };
 
   const merchant = await prisma.merchant.findUnique({
@@ -301,6 +297,7 @@ const findMatchingProduct = (
 // ─────────────────────────────────────────────
 
 const handleBuyRequest = async (
+  merchantId: string,
   from: string,
   productQuery: string,
   customerName?: string,
@@ -310,7 +307,7 @@ const handleBuyRequest = async (
   );
 
   // ── Step 1: Find product from DB ────────────
-  const allProducts = await getAllActiveProducts();
+  const allProducts = await getAllActiveProducts(merchantId);
   const matchedProduct = findMatchingProduct(productQuery, allProducts);
 
   if (!matchedProduct) {
@@ -318,6 +315,7 @@ const handleBuyRequest = async (
       `[ROUTER] No product match found for query: "${productQuery}"`,
     );
     await sendTextMessage(
+      merchantId,
       from,
       [
         `😅 Sorry! "*${productQuery}*" naam ka koi product nahi mila humari catalog mein.`,
@@ -335,6 +333,7 @@ const handleBuyRequest = async (
   // ── Step 2: Check stock ─────────────────────
   if (matchedProduct.stock <= 0) {
     await sendTextMessage(
+      merchantId,
       from,
       [
         `😔 Uh oh! *${matchedProduct.name}* abhi out of stock hai.`,
@@ -346,10 +345,10 @@ const handleBuyRequest = async (
   }
 
   // ── Step 3: Check merchant config ──────────
-  const merchantId = process.env.MERCHANT_ID;
   if (!merchantId) {
     console.error("[ROUTER] MERCHANT_ID is not set — cannot create order");
     await sendTextMessage(
+      merchantId,
       from,
       "😔 Kuch technical problem aayi. Please thodi der mein dobara try karein!",
     );
@@ -357,11 +356,12 @@ const handleBuyRequest = async (
   }
 
   // ── Step 4: Detect payment method ───────────
-  const paymentConfig = await getPaymentConfig();
+  const paymentConfig = await getPaymentConfig(merchantId);
 
   if (paymentConfig.mode === "none") {
     console.error("[ROUTER] No payment method configured — cannot create order");
     await sendTextMessage(
+      merchantId,
       from,
       [
         `😔 Payment abhi setup nahi hua dukaan mein.`,
@@ -423,7 +423,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
-      await sendTextMessage(from, message);
+      await sendTextMessage(merchantId, from, message);
       console.log(`[ROUTER] ✅ Razorpay link sent to ${from} for order #${shortOrderId}`);
     }
 
@@ -464,7 +464,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
-      await sendTextMessage(from, message);
+      await sendTextMessage(merchantId, from, message);
       console.log(`[ROUTER] ✅ UPI link sent to ${from} for order #${shortOrderId}`);
     }
 
@@ -474,6 +474,7 @@ const handleBuyRequest = async (
     console.error("[ROUTER] Stack  :", error?.stack || "No stack");
 
     await sendTextMessage(
+      merchantId,
       from,
       [
         `😔 Order process mein kuch problem aayi!`,
@@ -490,6 +491,7 @@ const handleBuyRequest = async (
 // ─────────────────────────────────────────────
 
 export const routeMessage = async (
+  merchantId: string,
   from: string,
   messageText: string,
   customerName?: string,
@@ -511,10 +513,10 @@ export const routeMessage = async (
   console.log("────────────────────────────────────────");
 
   // Fetch merchant name once for this request
-  const merchantName = await getMerchantName();
+  const merchantName = await getMerchantName(merchantId);
 
   // ── Persist customer message to DB (CRM) ────
-  logChatMessage(from, "customer", trimmedText);
+  logChatMessage(merchantId, from, "customer", trimmedText);
 
   switch (messageType) {
     // ── 1. Greeting ─────────────────────────
@@ -523,15 +525,15 @@ export const routeMessage = async (
       // Clear conversation history on greeting (new session)
       clearConversation(from);
       const greetingMsg = `Namaste${customerName ? " " + customerName : ""}! 🙏 Welcome to ${merchantName}!\n\nHum aapki kya madad kar sakte hai?\n\n1️⃣ Product Catalog dekhein\n2️⃣ Order place karein\n3️⃣ Koi bhi sawaal poochein — AI jawab dega!`;
-      logChatMessage(from, "bot", greetingMsg);
-      await sendGreetingMessage(from, customerName, merchantName);
+      logChatMessage(merchantId, from, "bot", greetingMsg);
+      await sendGreetingMessage(merchantId, from, customerName, merchantName);
       break;
     }
 
     // ── 2. Catalog ──────────────────────────
     case "CATALOG_REQUEST": {
       console.log("[ROUTER] → Handler: CATALOG_REQUEST");
-      const activeProducts = await getActiveProducts();
+      const activeProducts = await getActiveProducts(merchantId);
       const catalogProducts: CatalogProduct[] = activeProducts.map((p) => ({
         name: p.name,
         price: p.price,
@@ -541,12 +543,12 @@ export const routeMessage = async (
 
       if (catalogProducts.length === 0) {
         const noProductMsg = "😔 Abhi koi product available nahi hai. Thodi der baad dobara try karein!";
-        logChatMessage(from, "bot", noProductMsg);
-        await sendTextMessage(from, noProductMsg);
+        logChatMessage(merchantId, from, "bot", noProductMsg);
+        await sendTextMessage(merchantId, from, noProductMsg);
       } else {
         const catalogMsg = `📦 ${merchantName} Catalog:\n` + catalogProducts.map((p, i) => `${i+1}. ${p.name} — ₹${p.price}`).join("\n");
-        logChatMessage(from, "bot", catalogMsg);
-        await sendCatalogMessage(from, catalogProducts, merchantName);
+        logChatMessage(merchantId, from, "bot", catalogMsg);
+        await sendCatalogMessage(merchantId, from, catalogProducts, merchantName);
       }
       break;
     }
@@ -563,11 +565,11 @@ export const routeMessage = async (
       if (buyCommandMatch) {
         // e.g. "buy Classic Cotton Tee" → productQuery = "Classic Cotton Tee"
         const productQuery = trimmedText.slice(4).trim();
-        await handleBuyRequest(from, productQuery, customerName);
+        await handleBuyRequest(merchantId, from, productQuery, customerName);
       } else {
         // Generic order intent — show menu with instructions
         console.log("[ROUTER] Generic order intent — showing order init menu");
-        await sendOrderInitMessage(from);
+        await sendOrderInitMessage(merchantId, from);
       }
       break;
     }
@@ -583,15 +585,15 @@ export const routeMessage = async (
       addToConversation(from, "user", trimmedText);
 
       // Generate AI response with context
-      const aiResponse = await generateAIResponse(trimmedText, history);
+      const aiResponse = await generateAIResponse(merchantId, trimmedText, history);
 
       // Store AI response in conversation history
       addToConversation(from, "model", aiResponse);
 
       // Persist bot response to DB
-      logChatMessage(from, "bot", aiResponse);
+      logChatMessage(merchantId, from, "bot", aiResponse);
 
-      await sendTextMessage(from, aiResponse);
+      await sendTextMessage(merchantId, from, aiResponse);
       break;
     }
 
@@ -603,11 +605,11 @@ export const routeMessage = async (
       const history = getConversationHistory(from);
       addToConversation(from, "user", trimmedText);
 
-      const fallbackResponse = await generateAIResponse(trimmedText, history);
+      const fallbackResponse = await generateAIResponse(merchantId, trimmedText, history);
 
       addToConversation(from, "model", fallbackResponse);
-      logChatMessage(from, "bot", fallbackResponse);
-      await sendTextMessage(from, fallbackResponse);
+      logChatMessage(merchantId, from, "bot", fallbackResponse);
+      await sendTextMessage(merchantId, from, fallbackResponse);
       break;
     }
   }

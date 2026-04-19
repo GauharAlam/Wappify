@@ -14,6 +14,9 @@ import {
   Loader2,
   Lock,
   Zap,
+  Copy,
+  ExternalLink,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,13 +36,22 @@ const STEPS: Step[] = ["business", "whatsapp", "payments", "ai", "success"];
 interface OnboardingData {
   name: string;
   whatsappNumber: string;
-  twilioAccountSid: string;
-  twilioAuthToken: string;
   upiId: string;
   razorpayKeyId: string;
   razorpayKeySecret: string;
   aiContext: string;
 }
+
+// ─────────────────────────────────────────────
+// Store Code generator
+// ─────────────────────────────────────────────
+
+const generateStoreCode = (name: string): string => {
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12) || "STORE";
+};
 
 // ─────────────────────────────────────────────
 // Sub-components
@@ -65,6 +77,45 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   );
 }
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-900 transition-colors"
+    >
+      {copied ? (
+        <>
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5" />
+          Copy Link
+        </>
+      )}
+    </button>
+  );
+}
+
 // ─────────────────────────────────────────────
 // Main Page Component
 // ─────────────────────────────────────────────
@@ -76,8 +127,6 @@ export default function OnboardingPage() {
   const [data, setData] = React.useState<OnboardingData>({
     name: "",
     whatsappNumber: "",
-    twilioAccountSid: "",
-    twilioAuthToken: "",
     upiId: "",
     razorpayKeyId: "",
     razorpayKeySecret: "",
@@ -85,6 +134,12 @@ export default function OnboardingPage() {
   });
 
   const currentStep = STEPS[currentStepIdx];
+
+  // Preview store code
+  const storeCode = React.useMemo(() => generateStoreCode(data.name), [data.name]);
+  const previewLink = data.whatsappNumber
+    ? `https://wa.me/${data.whatsappNumber.replace(/\D/g, "")}?text=STORE-${storeCode}`
+    : "";
 
   const handleNext = async () => {
     if (currentStepIdx < STEPS.length - 1) {
@@ -138,10 +193,10 @@ export default function OnboardingPage() {
                 <Zap className="h-6 w-6 font-bold" />
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-neutral-900 mb-2">
-                Let's set up your Store
+                Let&apos;s set up your Store
               </h1>
               <p className="text-neutral-500 max-w-md mx-auto">
-                Complete these 4 simple steps to launch your WhatsApp Commerce platform.
+                Complete these 4 simple steps to launch your WhatsApp Commerce platform. No API keys needed!
               </p>
             </motion.div>
           )}
@@ -183,15 +238,6 @@ export default function OnboardingPage() {
                           onChange={(e) => setData({ ...data, name: e.target.value })}
                         />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="wa">Twilio Sender Number</Label>
-                        <Input
-                          id="wa"
-                          placeholder="whatsapp:+14155238886"
-                          value={data.whatsappNumber}
-                          onChange={(e) => setData({ ...data, whatsappNumber: e.target.value })}
-                        />
-                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -207,31 +253,53 @@ export default function OnboardingPage() {
                     <div className="space-y-1">
                       <h2 className="text-xl font-semibold flex items-center gap-2">
                         <MessageSquare className="h-5 w-5 text-green-500" />
-                        Twilio Integration
+                        Connect WhatsApp
                       </h2>
-                      <p className="text-sm text-neutral-500">Connect your Twilio account to send WhatsApp messages.</p>
+                      <p className="text-sm text-neutral-500">Enter the number your customers already message you on.</p>
                     </div>
 
                     <div className="space-y-4 pt-4">
                       <div className="space-y-2">
-                        <Label htmlFor="accountSid">Twilio Account SID</Label>
+                        <Label htmlFor="wa">Your WhatsApp Business Number</Label>
                         <Input
-                          id="accountSid"
-                          placeholder="ACxxxxxxxxxxxxxx..."
-                          value={data.twilioAccountSid}
-                          onChange={(e) => setData({ ...data, twilioAccountSid: e.target.value })}
+                          id="wa"
+                          placeholder="919876543210"
+                          value={data.whatsappNumber}
+                          onChange={(e) => setData({ ...data, whatsappNumber: e.target.value })}
                         />
+                        <p className="text-xs text-neutral-400">
+                          Format: country code + number (e.g. 91 for India + your 10-digit number)
+                        </p>
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="authToken">Twilio Auth Token</Label>
-                        <Input
-                          id="authToken"
-                          type="password"
-                          placeholder="Keep it secret"
-                          value={data.twilioAuthToken}
-                          onChange={(e) => setData({ ...data, twilioAuthToken: e.target.value })}
-                        />
+
+                      {/* No API keys badge */}
+                      <div className="flex items-center gap-3 rounded-lg border-2 border-green-300 bg-green-50 p-4">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                          <Smartphone className="h-5 w-5 text-green-700" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-green-900">No API keys needed! ✨</p>
+                          <p className="text-xs text-green-700">
+                            Powered by Wappify&apos;s platform. Just enter your number and you&apos;re all set.
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Live preview of shareable link */}
+                      {previewLink && data.name && (
+                        <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-2">
+                          <p className="text-xs font-medium text-neutral-500">📱 Preview: Your Store Link</p>
+                          <div className="flex items-center gap-2 rounded-md bg-neutral-50 px-3 py-2">
+                            <code className="flex-1 text-xs font-mono text-neutral-700 truncate">
+                              {previewLink}
+                            </code>
+                            <CopyButton text={previewLink} />
+                          </div>
+                          <p className="text-xs text-neutral-400">
+                            Share this link with customers — they&apos;ll be auto-connected to your store.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}
@@ -363,12 +431,29 @@ export default function OnboardingPage() {
                     </div>
                     <div className="space-y-2">
                       <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
-                        You're all set!
+                        You&apos;re all set!
                       </h2>
                       <p className="text-neutral-500">
-                        Your WhatsApp Store is live and your AI bot is learning your catalog.
+                        Your WhatsApp Store is live and your AI bot is ready to serve customers.
                       </p>
                     </div>
+
+                    {/* Show the shareable link on success */}
+                    {previewLink && (
+                      <div className="rounded-lg border-2 border-green-300 bg-green-50 p-4 space-y-2 text-left max-w-md mx-auto">
+                        <p className="text-sm font-semibold text-green-900">📱 Your Store Link</p>
+                        <div className="flex items-center gap-2 rounded-md bg-white border border-green-200 px-3 py-2">
+                          <code className="flex-1 text-xs font-mono text-green-800 truncate">
+                            {previewLink}
+                          </code>
+                          <CopyButton text={previewLink} />
+                        </div>
+                        <p className="text-xs text-green-600">
+                          Share this link on your Instagram, website, or business cards!
+                        </p>
+                      </div>
+                    )}
+
                     <div className="pt-6">
                       <Button
                         size="lg"

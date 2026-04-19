@@ -13,8 +13,21 @@ import {
   XCircle,
   Clock,
   Sparkles,
+  Info,
+  Copy,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 // ─────────────────────────────────────────────
@@ -37,6 +50,7 @@ interface SubscriptionData {
 interface BillingStatusResponse {
   success: boolean;
   hasSubscription: boolean;
+  adminUpiId: string | null;
   subscription: SubscriptionData | null;
 }
 
@@ -171,8 +185,14 @@ export default function BillingPage() {
     null
   );
   const [hasSubscription, setHasSubscription] = useState(false);
+  const [adminUpiId, setAdminUpiId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isUpiModalOpen, setIsUpiModalOpen] = useState(false);
+  const [upiSelectedPlan, setUpiSelectedPlan] = useState<typeof PLANS[0] | null>(null);
+  const [upiUtrNumber, setUpiUtrNumber] = useState("");
+  const [upiError, setUpiError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // ── Fetch billing status ──────────────────
   const fetchStatus = useCallback(async () => {
@@ -182,6 +202,7 @@ export default function BillingPage() {
       if (data.success) {
         setHasSubscription(data.hasSubscription);
         setSubscription(data.subscription);
+        setAdminUpiId(data.adminUpiId || null);
       }
     } catch (err) {
       console.error("Failed to fetch billing status:", err);
@@ -250,6 +271,67 @@ export default function BillingPage() {
       alert("Something went wrong. Please try again.");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  // ── UPI Payment entry ───────────────────
+  const handleUpiPayment = (tier: string) => {
+    if (!adminUpiId) {
+      alert("UPI payment is not configured by the platform.");
+      return;
+    }
+    const plan = PLANS.find((p) => p.tier === tier);
+    if (plan) {
+      setUpiSelectedPlan(plan);
+      setUpiUtrNumber("");
+      setUpiError(null);
+      setIsUpiModalOpen(true);
+    }
+  };
+
+  const handleUpiSubmit = async () => {
+    if (!upiSelectedPlan || !upiUtrNumber.trim()) {
+      setUpiError("Please enter your 12-digit UTR number.");
+      return;
+    }
+
+    if (upiUtrNumber.trim().length < 12) {
+      setUpiError("UTR must be at least 12 digits.");
+      return;
+    }
+
+    setUpiError(null);
+    setActionLoading(`upi-${upiSelectedPlan.tier}`);
+    
+    try {
+      const res = await fetch("/api/billing/upi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          planTier: upiSelectedPlan.tier, 
+          upiRef: upiUtrNumber.trim() 
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsUpiModalOpen(false);
+        fetchStatus();
+      } else {
+        setUpiError(data.message || "Failed to submit payment details.");
+      }
+    } catch (err) {
+      setUpiError("Something went wrong. Please try again.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const copyUpiId = () => {
+    if (adminUpiId) {
+      navigator.clipboard.writeText(adminUpiId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -503,21 +585,33 @@ export default function BillingPage() {
                   Current Plan
                 </Button>
               ) : (
-                <Button
-                  className={cn(
-                    "w-full rounded-xl font-bold transition-all",
-                    plan.featured
-                      ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
-                      : "bg-foreground hover:bg-foreground/90 text-background"
+                <div className="flex flex-col gap-2">
+                  <Button
+                    className={cn(
+                      "w-full rounded-xl font-bold transition-all",
+                      plan.featured
+                        ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20"
+                        : "bg-foreground hover:bg-foreground/90 text-background"
+                    )}
+                    onClick={() => handleSubscribe(plan.tier)}
+                    disabled={actionLoading === plan.tier || actionLoading === `upi-${plan.tier}`}
+                  >
+                    {actionLoading === plan.tier && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {hasSubscription ? "Switch via UPI / Card" : "Start via Razorpay"}
+                  </Button>
+                  
+                  {adminUpiId && plan.tier !== "ENTERPRISE" && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl font-bold border-primary text-primary hover:bg-primary/5"
+                      onClick={() => handleUpiPayment(plan.tier)}
+                      disabled={actionLoading === `upi-${plan.tier}` || actionLoading === plan.tier}
+                    >
+                      {actionLoading === `upi-${plan.tier}` && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Pay zero-fee via UPI
+                    </Button>
                   )}
-                  onClick={() => handleSubscribe(plan.tier)}
-                  disabled={actionLoading === plan.tier}
-                >
-                  {actionLoading === plan.tier ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {hasSubscription ? "Switch to " + plan.name : "Start Free Trial"}
-                </Button>
+                </div>
               )}
             </div>
           );
@@ -555,6 +649,112 @@ export default function BillingPage() {
           ))}
         </div>
       </div>
+
+      {/* ── UPI Payment Dialog ──────────────── */}
+      <Dialog open={isUpiModalOpen} onOpenChange={setIsUpiModalOpen}>
+        <DialogContent className="sm:max-w-md bg-card border-none shadow-2xl backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                <Sparkles className="h-4 w-4" />
+              </div>
+              Zero-Fee UPI Payment
+            </DialogTitle>
+            <DialogDescription className="text-sm font-medium pt-2">
+              Pay via UPI to avoid convenience fees. Your plan will be activated once our team verifies the UTR number.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Payment Summary */}
+            <div className="rounded-xl bg-muted/50 p-4 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Plan</span>
+                <span className="font-bold">{upiSelectedPlan?.name} Plan</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Amount to Pay</span>
+                <span className="font-extrabold text-lg text-emerald-600 dark:text-emerald-400">
+                  {upiSelectedPlan?.price}
+                </span>
+              </div>
+            </div>
+
+            {/* UPI ID */}
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                1. Transfer to this UPI ID
+              </Label>
+              <div className="flex items-center gap-2 overflow-hidden rounded-xl border bg-background p-1 pl-3 transition-colors focus-within:border-primary">
+                <span className="flex-1 font-mono text-sm truncate py-2 select-all">
+                  {adminUpiId}
+                </span>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className={cn(
+                    "h-9 px-3 shrink-0 rounded-lg",
+                    copied ? "text-emerald-500" : "text-muted-foreground"
+                  )}
+                  onClick={copyUpiId}
+                >
+                  {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* UTR Input */}
+            <div className="space-y-2">
+              <Label htmlFor="utr" className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                2. Enter 12-digit UTR Number
+              </Label>
+              <Input
+                id="utr"
+                placeholder="0000 0000 0000"
+                value={upiUtrNumber}
+                onChange={(e) => setUpiUtrNumber(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                className="h-11 rounded-xl text-center font-mono text-lg tracking-widest bg-background border-none ring-1 ring-muted focus:ring-2 focus:ring-primary"
+              />
+              {upiError ? (
+                <p className="text-[10px] text-destructive font-bold flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {upiError}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                  <Info className="h-3 w-3" />
+                  You can find the UTR in your payment app history.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="sm:justify-between gap-3">
+            <Button
+              variant="ghost"
+              className="rounded-xl font-bold flex-1"
+              onClick={() => setIsUpiModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl font-bold flex-1 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90"
+              onClick={handleUpiSubmit}
+              disabled={actionLoading?.startsWith("upi-")}
+            >
+              {actionLoading?.startsWith("upi-") ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  Submit Payment
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

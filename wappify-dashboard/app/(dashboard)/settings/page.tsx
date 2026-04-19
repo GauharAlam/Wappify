@@ -17,8 +17,8 @@ export type MerchantSettings = {
   id: string;
   name: string;
   whatsappNumber: string;
-  twilioAccountSid: string | null;
-  twilioAuthToken: string | null;
+  storeCode: string;
+  whatsappConnected: boolean;
   razorpayKeyId: string | null;
   razorpayKeySecret: string | null;
   upiId: string | null;

@@ -18,9 +18,9 @@ async function main() {
   const updatedMerchant = await prisma.merchant.update({
     where: { id: activeMerchant.id },
     data: {
-      whatsappNumber: "whatsapp:+14155238886",
-      twilioAccountSid: "AC_MOCK_ACCOUNT_SID",
-      twilioAuthToken: "MOCK_AUTH_TOKEN",
+      whatsappNumber: "919876543210",
+      storeCode: "STYLEHOUSE",
+      whatsappConnected: true,
       razorpayKeyId: 'rzp_test_demo',
       razorpayKeySecret: 'demo_secret',
       aiContext: 'StyleHouse Boutique is a premium apparel brand based in Mumbai, specializing in contemporary Indian wear and accessories for modern women.',

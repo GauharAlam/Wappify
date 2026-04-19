@@ -20,18 +20,12 @@ export async function POST(req: Request) {
         where: { userId: session.user.id }
     });
 
-    if (!merchant || !merchant.twilioAccountSid || !merchant.twilioAuthToken || !merchant.whatsappNumber) {
-        return NextResponse.json({ error: "Twilio WhatsApp API not configured" }, { status: 400 });
+    if (!merchant || !merchant.whatsappNumber) {
+        return NextResponse.json({ error: "WhatsApp not configured. Complete onboarding first." }, { status: 400 });
     }
 
-    // Trigger the send
-    await sendWhatsAppMessage(
-        merchant.twilioAccountSid,
-        merchant.twilioAuthToken,
-        merchant.whatsappNumber,
-        to,
-        message
-    );
+    // Send via the centralised Meta Cloud API (through the backend)
+    await sendWhatsAppMessage(to, message);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

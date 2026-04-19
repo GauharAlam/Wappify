@@ -36,10 +36,14 @@ export async function GET(req: NextRequest) {
 
     const sub = merchant.subscription;
 
+    const settings = await prisma.platformSettings.findUnique({ where: { id: "global" } });
+    const adminUpiId = settings?.adminUpiId || null;
+
     if (!sub) {
       return NextResponse.json({
         success: true,
         hasSubscription: false,
+        adminUpiId,
         subscription: null,
       });
     }
@@ -49,6 +53,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       hasSubscription: true,
+      adminUpiId: settings?.adminUpiId || null,
       subscription: {
         id: sub.id,
         planTier: sub.planTier,

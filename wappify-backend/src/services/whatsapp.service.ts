@@ -1,5 +1,5 @@
-import twilio from "twilio";
-import { getTwilioConfig, formatWhatsAppNumber } from "./twilio.service";
+import { sendMetaTextMessage } from "./metaWhatsapp.service";
+import { prisma } from "../lib/prisma";
 
 // ─────────────────────────────────────────────
 // Types
@@ -14,45 +14,40 @@ export interface CatalogProduct {
 
 // ─────────────────────────────────────────────
 // Core: Send text message
+// Now uses the centralised Meta Cloud API instead
+// of per-merchant Twilio credentials.
 // ─────────────────────────────────────────────
 
 export const sendTextMessage = async (
+  merchantId: string,
   to: string,
   message: string,
 ): Promise<void> => {
-  const merchantId = process.env.MERCHANT_ID;
   if (!merchantId) {
-    throw new Error("MERCHANT_ID is not set in .env");
+    throw new Error("merchantId is required to send messages");
   }
 
-  // Fetch Twilio config securely from DB
-  const { accountSid, authToken, whatsappNumber } = await getTwilioConfig(merchantId);
-
-  // Initialize Twilio client
-  const client = twilio(accountSid, authToken);
-
-  // Format numbers for Twilio
-  const formattedTo = formatWhatsAppNumber(to);
-  const formattedFrom = formatWhatsAppNumber(whatsappNumber);
-
-  console.log(`[TWILIO SERVICE] Sending text message to: ${formattedTo}`);
+  console.log(`[WA SERVICE] Sending text message to: ${to}`);
 
   try {
-    const response = await client.messages.create({
-      body: message,
-      from: formattedFrom,
-      to: formattedTo,
+    await sendMetaTextMessage(to, message);
+
+    console.log(`[WA SERVICE] Message sent successfully to ${to}`);
+
+    // Track usage in the database asynchronously
+    prisma.merchant.update({
+      where: { id: merchantId },
+      data: { messagesSent: { increment: 1 } },
+    }).catch((err: any) => {
+      console.error("[WA METRICS] Failed to track message count:", err?.message || err);
     });
 
-    console.log(
-      `[TWILIO SERVICE] Message sent successfully! SID: ${response.sid}`
-    );
   } catch (error: any) {
     console.error(
-      "[TWILIO SERVICE] Failed to send message:",
+      "[WA SERVICE] Failed to send message:",
       error?.message || error
     );
-    throw new Error(`Twilio send failed: ${error?.message || "Unknown error"}`);
+    throw new Error(`WhatsApp send failed: ${error?.message || "Unknown error"}`);
   }
 };
 
@@ -61,6 +56,7 @@ export const sendTextMessage = async (
 // ─────────────────────────────────────────────
 
 export const sendGreetingMessage = async (
+  merchantId: string,
   to: string,
   customerName?: string,
   merchantName: string = "Our Store",
@@ -75,7 +71,7 @@ export const sendGreetingMessage = async (
     `❓ *3* — Help & FAQ\n\n` +
     `Ya seedha apna sawaal type karein, main Hinglish mein jawab dunga! 😊`;
 
-  await sendTextMessage(to, message);
+  await sendTextMessage(merchantId, to, message);
 };
 
 // ─────────────────────────────────────────────
@@ -83,12 +79,14 @@ export const sendGreetingMessage = async (
 // ─────────────────────────────────────────────
 
 export const sendCatalogMessage = async (
+  merchantId: string,
   to: string,
   products: CatalogProduct[],
   merchantName: string = "Our Store",
 ): Promise<void> => {
   if (products.length === 0) {
     await sendTextMessage(
+      merchantId,
       to,
       "Abhi koi product available nahi hai. Thodi der baad try karein! 🙏",
     );
@@ -113,14 +111,14 @@ export const sendCatalogMessage = async (
     `➡️ *"buy [product name]"* likhein order karne ke liye\n` +
     `➡️ Koi sawaal ho toh seedha poochein!`;
 
-  await sendTextMessage(to, message);
+  await sendTextMessage(merchantId, to, message);
 };
 
 // ─────────────────────────────────────────────
 // Order init message
 // ─────────────────────────────────────────────
 
-export const sendOrderInitMessage = async (to: string): Promise<void> => {
+export const sendOrderInitMessage = async (merchantId: string, to: string): Promise<void> => {
   const message =
     `🛒 *Order karna chahte hain? Bilkul sahi choice!*\n\n` +
     `Filhaal aap humse directly order kar sakte hain:\n\n` +
@@ -129,14 +127,14 @@ export const sendOrderInitMessage = async (to: string): Promise<void> => {
     `3️⃣ Hum aapko payment link bhejenge!\n\n` +
     `Koi help chahiye? Seedha poochein 😊`;
 
-  await sendTextMessage(to, message);
+  await sendTextMessage(merchantId, to, message);
 };
 
 // ─────────────────────────────────────────────
 // Fallback message
 // ─────────────────────────────────────────────
 
-export const sendFallbackMessage = async (to: string): Promise<void> => {
+export const sendFallbackMessage = async (merchantId: string, to: string): Promise<void> => {
   const message =
     `Oops! Mujhe samajh nahi aaya 😅\n\n` +
     `Aap neeche se ek option choose kar sakte hain:\n\n` +
@@ -145,7 +143,7 @@ export const sendFallbackMessage = async (to: string): Promise<void> => {
     `❓ *3* — Help & FAQ\n\n` +
     `Ya apna sawaal dobara clearly type karein, main zaroor help karunga!`;
 
-  await sendTextMessage(to, message);
+  await sendTextMessage(merchantId, to, message);
 };
 
 // ─────────────────────────────────────────────
@@ -153,6 +151,7 @@ export const sendFallbackMessage = async (to: string): Promise<void> => {
 // ─────────────────────────────────────────────
 
 export const sendMediaAcknowledgement = async (
+  merchantId: string,
   to: string,
   mediaType: string,
 ): Promise<void> => {
@@ -172,5 +171,5 @@ export const sendMediaAcknowledgement = async (
     `Apna sawaal text mein type karein aur hum turant help karenge! 😊\n\n` +
     `🛍️ *1* type karein catalog dekhne ke liye`;
 
-  await sendTextMessage(to, message);
+  await sendTextMessage(merchantId, to, message);
 };

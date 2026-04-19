@@ -1,6 +1,17 @@
 import { prisma } from "./prisma";
 import { MOCK_CATALOG } from "../config/mockCatalog";
 
+/**
+ * Generates a short, human-readable store code from the merchant name.
+ * E.g. "StyleHouse India" → "STYLEHOUSE"
+ */
+const generateStoreCode = (name: string): string => {
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 12) || "STORE";
+};
+
 export const ensureSeedData = async (): Promise<void> => {
   const merchantId = process.env.MERCHANT_ID;
 
@@ -15,47 +26,45 @@ export const ensureSeedData = async (): Promise<void> => {
 
   try {
     // ── 1. Upsert Merchant ───────────────────────────────────────────
-    // Strategy: find by id first, then by whatsappNumber (handles stale
-    // placeholder records), then create fresh. This makes the seed fully
-    // idempotent even if the MERCHANT_ID was changed between runs.
+    // Strategy: find by id first, then handle creation/update.
+    // The storeCode field is now required and unique.
 
     let merchant = await prisma.merchant.findUnique({
       where: { id: merchantId },
     });
 
+    const merchantName = "StyleHouse India";
+    const storeCode = generateStoreCode(merchantName);
+    const waNumber = process.env.WHATSAPP_BUSINESS_NUMBER || "0000000000";
+
     if (!merchant) {
-      // Check if a stale record exists with the same whatsappNumber
-      const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID || "0000000000";
-      const stale = await prisma.merchant.findUnique({
-        where: { whatsappNumber: phoneId },
+      // Check for stale records that might conflict on unique fields
+      const staleByCode = await prisma.merchant.findUnique({
+        where: { storeCode },
       });
-
-      if (stale) {
-        console.log(
-          `[SEED] Found stale merchant (id: ${stale.id}) — migrating to new MERCHANT_ID`,
-        );
-
-        // Delete stale products linked to the old merchant first
-        await prisma.product.deleteMany({
-          where: { merchantId: stale.id },
-        });
-
-        // Delete the stale merchant
-        await prisma.merchant.delete({
-          where: { id: stale.id },
-        });
-
-        console.log("[SEED] Stale merchant and its products removed.");
+      if (staleByCode) {
+        await prisma.product.deleteMany({ where: { merchantId: staleByCode.id } });
+        await prisma.merchant.delete({ where: { id: staleByCode.id } });
+        console.log(`[SEED] Removed stale merchant with code "${storeCode}"`);
       }
 
-      // Create fresh merchant with the correct UUID
+      const staleByNumber = await prisma.merchant.findUnique({
+        where: { whatsappNumber: waNumber },
+      });
+      if (staleByNumber) {
+        await prisma.product.deleteMany({ where: { merchantId: staleByNumber.id } });
+        await prisma.merchant.delete({ where: { id: staleByNumber.id } });
+        console.log(`[SEED] Removed stale merchant with number "${waNumber}"`);
+      }
+
+      // Create fresh merchant with store code
       merchant = await prisma.merchant.create({
         data: {
           id: merchantId,
-          name: "StyleHouse India",
-          whatsappNumber: "whatsapp:+14155238886",
-          twilioAccountSid: "AC_MOCK_ACCOUNT_SID",
-          twilioAuthToken: "MOCK_AUTH_TOKEN",
+          name: merchantName,
+          whatsappNumber: waNumber,
+          storeCode,
+          whatsappConnected: true,
           razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? null,
           razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? null,
           aiContext:
@@ -63,12 +72,12 @@ export const ensureSeedData = async (): Promise<void> => {
         },
       });
     } else {
-      // Merchant exists with the correct ID — just keep credentials in sync
+      // Merchant exists — update non-sensitive fields
       merchant = await prisma.merchant.update({
         where: { id: merchantId },
         data: {
-          twilioAccountSid: "AC_MOCK_ACCOUNT_SID",
-          twilioAuthToken: "MOCK_AUTH_TOKEN",
+          storeCode,
+          whatsappConnected: true,
           razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? undefined,
           razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? undefined,
         },
@@ -76,7 +85,10 @@ export const ensureSeedData = async (): Promise<void> => {
     }
 
     console.log(
-      `[SEED] ✅ Merchant ready: "${merchant.name}" (id: ${merchant.id})`,
+      `[SEED] ✅ Merchant ready: "${merchant.name}" (id: ${merchant.id}, storeCode: ${merchant.storeCode})`,
+    );
+    console.log(
+      `[SEED]    WhatsApp Link: https://wa.me/${waNumber}?text=STORE-${merchant.storeCode}`,
     );
 
     // ── 2. Upsert Products ───────────────────────────────────────────

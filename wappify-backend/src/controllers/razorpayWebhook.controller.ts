@@ -167,7 +167,7 @@ export const receiveRazorpayWebhook = async (
           `Koi sawaal ho toh yahan message karein — hum hamesha available hain. 😊`,
         ].join("\n");
 
-        await sendTextMessage(customerWaId, confirmationMessage);
+        await sendTextMessage(updatedOrder.merchantId, customerWaId, confirmationMessage);
 
         console.log(
           `[RAZORPAY WEBHOOK] ✅ Confirmation message sent to customer: ${customerWaId}`

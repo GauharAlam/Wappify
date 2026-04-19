@@ -11,6 +11,9 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
+  Copy,
+  ExternalLink,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,9 +42,6 @@ interface FormState {
   // Merchant
   name: string;
   whatsappNumber: string;
-  // WhatsApp API via Twilio
-  twilioAccountSid: string;
-  twilioAuthToken: string;
   // Razorpay
   razorpayKeyId: string;
   razorpayKeySecret: string;
@@ -233,6 +233,54 @@ function SaveButton({ status }: { status: SectionStatus }) {
 }
 
 // ─────────────────────────────────────────────
+// Copy button helper
+// ─────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={handleCopy}
+      className="h-8 gap-1.5 text-xs"
+    >
+      {copied ? (
+        <>
+          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="h-3.5 w-3.5" />
+          Copy
+        </>
+      )}
+    </Button>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────
 
@@ -243,8 +291,6 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
   const [form, setForm] = React.useState<FormState>({
     name: merchant?.name ?? "",
     whatsappNumber: merchant?.whatsappNumber ?? "",
-    twilioAccountSid: merchant?.twilioAccountSid ?? "",
-    twilioAuthToken: merchant?.twilioAuthToken ?? "",
     razorpayKeyId: merchant?.razorpayKeyId ?? "",
     razorpayKeySecret: merchant?.razorpayKeySecret ?? "",
     upiId: merchant?.upiId ?? "",
@@ -319,10 +365,6 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
       {
         name: form.name.trim(),
         whatsappNumber: form.whatsappNumber.trim(),
-        twilioAccountSid: form.twilioAccountSid,
-        ...(form.twilioAuthToken.trim() && !form.twilioAuthToken.includes("•")
-          ? { twilioAuthToken: form.twilioAuthToken }
-          : {}),
       },
       setWhatsappStatus,
       "WhatsApp settings saved successfully!",
@@ -353,6 +395,12 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
     );
   };
 
+  // Build the shareable WhatsApp link
+  const storeCode = merchant?.storeCode || "";
+  const shareableLink = storeCode
+    ? `https://wa.me/${form.whatsappNumber.replace(/\D/g, "")}?text=STORE-${storeCode}`
+    : "";
+
   // ─────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────
@@ -360,7 +408,7 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
   return (
     <div className="space-y-6">
       {/* ══════════════════════════════════════ */}
-      {/* Section 1: WhatsApp                   */}
+      {/* Section 1: WhatsApp Connection         */}
       {/* ══════════════════════════════════════ */}
 
       <Card>
@@ -368,8 +416,8 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
           icon={MessageSquare}
           iconClass="text-green-600"
           bgClass="bg-green-100"
-          title="Twilio WhatsApp Integration"
-          description="Connect your Twilio credentials to power the WhatsApp shopping assistant."
+          title="WhatsApp Connection"
+          description="Your WhatsApp Business number is connected via Wappify's platform. No API keys needed!"
         />
 
         <Separator />
@@ -394,17 +442,17 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
               />
             </Field>
 
-            {/* WhatsApp Phone Number */}
+            {/* WhatsApp Business Number */}
             <Field
               id="whatsappNumber"
-              label="Twilio Sender Number"
+              label="WhatsApp Business Number"
               required
-              hint="Your Twilio WhatsApp sender number (or Sandbox number) formatted like whatsapp:+14155238886."
+              hint="Your business phone number that customers know. Format: country code + number (e.g. 919876543210)."
             >
               <Input
                 id="whatsappNumber"
                 name="whatsappNumber"
-                placeholder="whatsapp:+14155238886"
+                placeholder="919876543210"
                 value={form.whatsappNumber}
                 onChange={handleChange}
                 disabled={whatsappStatus.status === "saving"}
@@ -412,61 +460,49 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
               />
             </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              {/* Twilio Account SID */}
-              <Field
-                id="twilioAccountSid"
-                label="Twilio Account SID"
-                hint="Found on your Twilio console homepage. Looks like: ACxxxxxxxxxxxxx"
-              >
-                <Input
-                  id="twilioAccountSid"
-                  name="twilioAccountSid"
-                  placeholder="ACxxxxxxxxxxxxx"
-                  value={form.twilioAccountSid}
-                  onChange={handleChange}
-                  disabled={whatsappStatus.status === "saving"}
-                  className="font-mono text-sm"
-                />
-              </Field>
-
-              {/* Twilio Auth Token */}
-              <Field
-                id="twilioAuthToken"
-                label="Twilio Auth Token"
-                hint={
-                  merchant?.twilioAccountSid
-                    ? "A token is already saved. Paste a new one only to replace it."
-                    : "Kept completely secret. Required to send WhatsApp messages."
-                }
-              >
-                <SecretInput
-                  id="twilioAuthToken"
-                  name="twilioAuthToken"
-                  placeholder={
-                    merchant?.twilioAccountSid
-                      ? "Leave blank to keep current token"
-                      : "Enter your Auth Token"
-                  }
-                  value={form.twilioAuthToken}
-                  onChange={handleChange}
-                  disabled={whatsappStatus.status === "saving"}
-                />
-              </Field>
-            </div>
-
-            {/* Webhook info banner */}
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs text-blue-700">
-              <strong className="font-semibold">Twilio Webhook URL:</strong>{" "}
-              <code className="rounded bg-blue-100 px-1 py-0.5 font-mono">
-                https://your-domain.com/api/webhooks/whatsapp
-              </code>
-              <br />
-              <span className="mt-1 block text-blue-600">
-                In Twilio Console → Messaging → Senders → WhatsApp senders,
-                paste this URL into the <strong>"When a message comes in"</strong> field.
+            {/* Connection status badge */}
+            <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2.5">
+              <div className={cn(
+                "h-2.5 w-2.5 rounded-full",
+                merchant?.whatsappConnected ? "bg-green-500 animate-pulse" : "bg-neutral-300"
+              )} />
+              <span className="text-sm font-medium text-green-800">
+                {merchant?.whatsappConnected ? "Connected" : "Not Connected"}
+              </span>
+              <span className="text-xs text-green-600 ml-auto">
+                Powered by Wappify — zero setup required ✨
               </span>
             </div>
+
+            {/* Shareable WhatsApp Link */}
+            {shareableLink && (
+              <div className="rounded-lg border-2 border-green-300 bg-green-50/50 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-green-700" />
+                  <p className="text-sm font-semibold text-green-900">Your Store&apos;s WhatsApp Link</p>
+                </div>
+                <p className="text-xs text-green-700">
+                  Share this link with customers — they&apos;ll be automatically connected to your store&apos;s AI assistant.
+                </p>
+                <div className="flex items-center gap-2 rounded-md bg-white border border-green-200 px-3 py-2">
+                  <code className="flex-1 text-xs font-mono text-green-800 truncate">
+                    {shareableLink}
+                  </code>
+                  <CopyButton text={shareableLink} />
+                  <a
+                    href={shareableLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-green-700 hover:text-green-900 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+                <p className="text-xs text-green-600">
+                  Store Code: <code className="font-mono font-bold">STORE-{storeCode}</code>
+                </p>
+              </div>
+            )}
 
             <SectionFeedback
               status={whatsappStatus.status}

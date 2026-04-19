@@ -19,8 +19,9 @@ export async function getRequiredMerchant() {
   });
 
   // Check if onboarding is complete
+  // Merchants need: a name, a WhatsApp business number, and at least one payment method
   const hasPaymentMethod = merchant?.razorpayKeyId || merchant?.upiId;
-  if (!merchant || !merchant.twilioAccountSid || !hasPaymentMethod) {
+  if (!merchant || !merchant.whatsappNumber || !hasPaymentMethod) {
     redirect("/onboarding");
   }
 
