@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { routeMessage } from "./messageRouter.service";
 import { sendMediaAcknowledgement, sendTextMessage } from "./whatsapp.service";
+import { redis } from "../lib/redis";
 
 const safeStringify = (value: unknown): string => {
   try {
@@ -11,12 +12,12 @@ const safeStringify = (value: unknown): string => {
 };
 
 // ─────────────────────────────────────────────
-// Store-code routing map (in-memory cache)
+// Store-code routing map (Redis Cache)
 // Maps customer wa_id → merchantId after their
 // first message contains a store code.
 // ─────────────────────────────────────────────
 
-const customerMerchantMap = new Map<string, string>();
+// const customerMerchantMap = new Map<string, string>(); // Deprecated in-memory cache
 
 /**
  * Generates the shareable WhatsApp link for a merchant.
@@ -106,7 +107,8 @@ const resolveMerchant = async (
       });
 
       if (merchant) {
-        customerMerchantMap.set(from, merchant.id);
+        // Cache for 24 hours (86400 seconds)
+        await redis.setex(`route:${from}`, 86400, merchant.id).catch(e => console.warn("Redis set failed", e));
         console.log(`[QUEUE PROCESSOR] Store code "${code}" → merchant ${merchant.id}`);
         return { merchantId: merchant.id, isNewStoreLink: true };
       } else {
@@ -116,10 +118,16 @@ const resolveMerchant = async (
     }
   }
 
-  // ── 2. In-memory cache ─────────────────────
-  const cachedMerchantId = customerMerchantMap.get(from);
-  if (cachedMerchantId) {
-    return { merchantId: cachedMerchantId, isNewStoreLink: false };
+  // ── 2. Redis Cache ─────────────────────────
+  try {
+    const cachedMerchantId = await redis.get(`route:${from}`);
+    if (cachedMerchantId) {
+      // Refresh TTL
+      redis.expire(`route:${from}`, 86400).catch(()=>{});
+      return { merchantId: cachedMerchantId, isNewStoreLink: false };
+    }
+  } catch (err) {
+    console.warn("[QUEUE PROCESSOR] Redis get failed, bypassing cache", err);
   }
 
   // ── 3. Previous chat history in DB ─────────
@@ -130,7 +138,7 @@ const resolveMerchant = async (
   });
 
   if (previousChat) {
-    customerMerchantMap.set(from, previousChat.merchantId);
+    await redis.setex(`route:${from}`, 86400, previousChat.merchantId).catch(()=>{});
     return { merchantId: previousChat.merchantId, isNewStoreLink: false };
   }
 
@@ -139,7 +147,7 @@ const resolveMerchant = async (
   if (merchantCount === 1) {
     const merchant = await prisma.merchant.findFirst({ select: { id: true } });
     if (merchant) {
-      customerMerchantMap.set(from, merchant.id);
+      await redis.setex(`route:${from}`, 86400, merchant.id).catch(()=>{});
       return { merchantId: merchant.id, isNewStoreLink: false };
     }
   }
@@ -222,43 +230,43 @@ export async function runQueueProcessor() {
   
   setInterval(async () => {
     try {
-      // Find one pending job
-      const job = await prisma.webhookEvent.findFirst({
-        where: { status: "PENDING" },
-        orderBy: { createdAt: "asc" }
-      });
+      // Find and lock one pending job using PostgreSQL SKIP LOCKED
+      const jobs = await prisma.$queryRaw<Array<{ id: string; payload: any }>>`
+        UPDATE "WebhookEvent"
+        SET status = 'PROCESSING', "updatedAt" = NOW()
+        WHERE id = (
+          SELECT id
+          FROM "WebhookEvent"
+          WHERE status = 'PENDING'
+          ORDER BY "createdAt" ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING id, payload;
+      `;
 
-      if (!job) return;
+      if (!jobs || jobs.length === 0) return;
 
-      // Optimistically lock the job
-      await prisma.webhookEvent.update({
-        where: { id: job.id },
-        data: { status: "PROCESSING" }
-      });
+      const job = jobs[0];
 
       console.log(`[QUEUE PROCESSOR] Picked up job ${job.id}`);
 
       // Process it
       await processJob(job.id, job.payload);
 
-      // Mark completed
-      await prisma.webhookEvent.update({
-        where: { id: job.id },
-        data: { status: "COMPLETED" }
-      });
-
-      // Cleanup: delete completed jobs to save DB space
-      await prisma.webhookEvent.delete({ where: { id: job.id } });
+      // Mark completed & Cleanup: delete completed jobs to save DB space
+      await prisma.webhookEvent.delete({ where: { id: job.id } }).catch(()=>{});
 
     } catch (error: any) {
       console.error("[QUEUE PROCESSOR] Error processing job:");
       console.error(error);
       // Failsafe rollback
       try {
-        await prisma.webhookEvent.updateMany({
-          where: { status: "PROCESSING", updatedAt: { lt: new Date(Date.now() - 60000) } },
-          data: { status: "FAILED", error: error?.message?.substring(0, 500) }
-        });
+        await prisma.$queryRaw`
+          UPDATE "WebhookEvent"
+          SET status = 'FAILED', error = SUBSTRING(${error?.message || 'Unknown error'}, 1, 500)
+          WHERE status = 'PROCESSING' AND "updatedAt" < NOW() - INTERVAL '1 minute'
+        `;
       } catch (e) {}
     }
   }, 2000); // Polling every 2 seconds

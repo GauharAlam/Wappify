@@ -125,6 +125,7 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+  cartItems   CartItem[]
   merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 }
 
@@ -141,6 +142,28 @@ model Order {
   customer          Customer    @relation(fields: [customerId], references: [id])
   merchant          Merchant    @relation(fields: [merchantId], references: [id])
   items             OrderItem[]
+}
+
+model Cart {
+  id         String     @id @default(uuid())
+  merchantId String
+  customerId String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  items      CartItem[]
+
+  @@unique([merchantId, customerId])
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int     @default(1)
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
 }
 
 model OrderItem {

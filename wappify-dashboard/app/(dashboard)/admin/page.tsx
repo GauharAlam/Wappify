@@ -179,7 +179,7 @@ export default async function AdminDashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {users.map((user) => (
+              {merchantsWithUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-6 py-5 align-top">
                     <div className="flex items-center gap-3">
@@ -248,7 +248,7 @@ export default async function AdminDashboardPage() {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && (
+              {merchantsWithUsers.length === 0 && (
                 <tr>
                   <td colSpan={3} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center gap-3 text-muted-foreground">

@@ -208,3 +208,84 @@ export const getOrdersByCustomerWaId = async (waId: string) => {
     orderBy: { createdAt: "desc" },
   });
 };
+
+// ─────────────────────────────────────────────
+// Cart Operations
+// ─────────────────────────────────────────────
+
+/**
+ * Adds an item to the customer's cart.
+ */
+export const addToCart = async (merchantId: string, customerWaId: string, productId: string, quantity: number = 1) => {
+  const customer = await findOrCreateCustomer(customerWaId);
+  return prisma.cart.upsert({
+    where: { merchantId_customerId: { merchantId, customerId: customer.id } },
+    update: {
+      items: {
+        create: { productId, quantity }
+      }
+    },
+    create: {
+      merchantId,
+      customerId: customer.id,
+      items: {
+        create: { productId, quantity }
+      }
+    },
+    include: { items: { include: { product: true } } }
+  });
+};
+
+/**
+ * Fetches the active cart for a customer.
+ */
+export const getCart = async (merchantId: string, customerWaId: string) => {
+  const customer = await prisma.customer.findUnique({ where: { waId: customerWaId } });
+  if (!customer) return null;
+
+  return prisma.cart.findUnique({
+    where: { merchantId_customerId: { merchantId, customerId: customer.id } },
+    include: { items: { include: { product: true } } }
+  });
+};
+
+/**
+ * Creates a PENDING order from the current Cart and empties it.
+ */
+export const createOrderFromCart = async (merchantId: string, customerWaId: string) => {
+  const cart = await getCart(merchantId, customerWaId);
+  if (!cart || cart.items.length === 0) return null;
+
+  let totalAmount = 0;
+  const orderItemsData = cart.items.map(item => {
+    const itemTotal = Number(item.product.price) * item.quantity;
+    totalAmount += itemTotal;
+    return {
+      productId: item.productId,
+      quantity: item.quantity,
+      priceAtTime: item.product.price
+    };
+  });
+
+  // Create order
+  const order = await prisma.order.create({
+    data: {
+      merchantId,
+      customerId: cart.customerId,
+      status: "PENDING",
+      totalAmount,
+      items: {
+        create: orderItemsData
+      }
+    },
+    include: {
+      items: { include: { product: true } },
+      customer: true
+    }
+  });
+
+  // Empty cart
+  await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+  return order;
+};

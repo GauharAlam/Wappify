@@ -11,24 +11,28 @@ datasource db {
 model Merchant {
   id                 String        @id @default(uuid())
   name               String
-  whatsappNumber     String
+  whatsappNumber     String        @unique
+  storeCode          String        @unique @default(cuid()) // Short code for wa.me routing (e.g. "STYLE123")
+  whatsappConnected  Boolean       @default(false)
   razorpayKeyId      String?
   razorpayKeySecret  String?
   aiContext          String?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   upiId              String?
+  // @deprecated — Twilio replaced by centralised Meta Cloud API
   twilioAccountSid   String?
+  // @deprecated — Twilio replaced by centralised Meta Cloud API
   twilioAuthToken    String?
   geminiTokensUsed   Int           @default(0)
-  twilioMessagesSent Int           @default(0)
+  messagesSent       Int           @default(0)  // Renamed from twilioMessagesSent
   userId             String?
   user               User?         @relation(fields: [userId], references: [id])
   orders             Order[]
   products           Product[]
   subscription       Subscription?
 
-  @@index([whatsappNumber, twilioAccountSid])
+  @@index([storeCode])
 }
 
 model Subscription {
@@ -121,6 +125,7 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
+  cartItems   CartItem[]
   merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 }
 
@@ -137,6 +142,28 @@ model Order {
   customer          Customer    @relation(fields: [customerId], references: [id])
   merchant          Merchant    @relation(fields: [merchantId], references: [id])
   items             OrderItem[]
+}
+
+model Cart {
+  id         String     @id @default(uuid())
+  merchantId String
+  customerId String
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  items      CartItem[]
+
+  @@unique([merchantId, customerId])
+}
+
+model CartItem {
+  id        String  @id @default(uuid())
+  cartId    String
+  productId String
+  quantity  Int     @default(1)
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
 }
 
 model OrderItem {
