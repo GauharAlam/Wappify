@@ -551,7 +551,7 @@ export default function LandingPage() {
                   Powerful Insights at <br /> your fingertips.
                 </h2>
                 <p className="text-slate-400 text-lg leading-relaxed font-medium">
-                  Managing a store shouldn't be hard. Our unified dashboard gives you a birds-eye view of your growth, performance, and customer engagement.
+                  Managing a store shouldn&apos;t be hard. Our unified dashboard gives you a birds-eye view of your growth, performance, and customer engagement.
                 </p>
                 <ul className="space-y-4">
                   {[

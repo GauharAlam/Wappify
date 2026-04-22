@@ -62,7 +62,7 @@ export default async function AnalyticsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Advanced Analytics</h1>
         <p className="text-sm text-neutral-500">
-          Tracking your store's growth and customer behavior across WhatsApp.
+          Tracking your store&apos;s growth and customer behavior across WhatsApp.
         </p>
       </div>
 
