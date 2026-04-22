@@ -23,11 +23,11 @@ To prevent timeouts, the webhook route simply saves the raw event to the databas
 
 ---
 
-## 🚨 Current Flaws to Fix Before Launch
+## ✅ Production Hardening Completed
 
-Since this was "vibe-coded", there are a few bottlenecks that will break under load:
-1. **In-Memory Cache:** The `customerMerchantMap` in `queueProcessor.service.ts` is an in-memory `Map`. If you host this on Vercel/Render with multiple worker instances, the cache won't be shared. It must be moved to **Redis**.
-2. **Database Polling Race Conditions:** The queue processor uses a 2-second `setInterval` to find pending jobs. If 3 workers spawn, they will read the same un-updated row and process it 3 times. We need a proper lock mechanism (`SELECT FOR UPDATE SKIP LOCKED` or BullMQ).
+The following bottlenecks have already been addressed for production deployment:
+1. **Redis Caching:** The in-memory map in `queueProcessor.service.ts` has been replaced with **Redis** to support scaling with multiple worker instances.
+2. **Database Polling Race Conditions:** A `SELECT FOR UPDATE SKIP LOCKED` mechanism has been implemented on the Postgres queue so multiple background workers can safely poll without processing the same job twice.
 
 ---
 

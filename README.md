@@ -106,6 +106,7 @@ npm run dev
 - **Decoupled Processing**: AI logic is separated from the request/response cycle, preventing WhatsApp webhook timeouts (200 OK sent in <20ms).
 - **Resource Protection**: Express-rate-limit prevents malicious actors from draining your AI budget via webhook spam.
 - **Type Safety**: Full-stack TypeScript with shared Prisma models ensures data integrity across the dashboard and backend.
+- **CI/CD Pipeline**: Automated GitHub Actions workflows for linting, testing, and building the dashboard and backend to ensure code quality.
 
 ---
 
@@ -113,7 +114,8 @@ npm run dev
 This is an MVP built for the Wappify SaaS ecosystem. Feel free to open issues or PRs for:
 - [ ] Multi-merchant onboarding automation.
 - [ ] Abandoned cart reminders.
-- [ ] Advanced analytics with Recharts.
+- [x] Advanced analytics with Recharts.
+- [x] Multi-item cart system.
 
 ---
 
