@@ -3,6 +3,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { cancelSubscription } from "@/lib/razorpay-billing";
 
+export const dynamic = "force-dynamic";
+
+
 // ─────────────────────────────────────────────
 // POST /api/billing/cancel
 // Cancels the merchant's active Razorpay

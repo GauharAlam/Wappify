@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import type { SubscriptionStatus } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
+
 // ─────────────────────────────────────────────
 // POST /api/webhooks/razorpay-billing
 // Handles Razorpay subscription lifecycle

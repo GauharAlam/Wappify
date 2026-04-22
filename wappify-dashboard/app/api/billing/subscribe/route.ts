@@ -3,6 +3,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createSubscription, PLAN_CONFIG } from "@/lib/razorpay-billing";
 
+export const dynamic = "force-dynamic";
+
+
 // ─────────────────────────────────────────────
 // POST /api/billing/subscribe
 // Creates a Razorpay subscription for the

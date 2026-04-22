@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
+
 export async function POST(req: Request) {
   try {
     const session = await auth();

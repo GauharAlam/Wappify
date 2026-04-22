@@ -3,6 +3,9 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PLAN_CONFIG } from "@/lib/razorpay-billing";
 
+export const dynamic = "force-dynamic";
+
+
 // ─────────────────────────────────────────────
 // GET /api/billing/status
 // Returns the current subscription status
