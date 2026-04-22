@@ -20,7 +20,8 @@ export default {
       const isPublicRoute = 
         nextUrl.pathname === "/" || 
         nextUrl.pathname === "/login" || 
-        nextUrl.pathname === "/register";
+        nextUrl.pathname === "/register" ||
+        nextUrl.pathname.startsWith("/blog");
 
       // Public API routes — only auth, webhooks, and registration
       const isPublicApiRoute =
