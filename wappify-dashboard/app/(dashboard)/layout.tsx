@@ -1,16 +1,13 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
-import { getRequiredMerchant, getRequiredAppUser } from "@/lib/auth-utils";
+import { getRequiredDashboardContext } from "@/lib/auth-utils";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [merchant, appUser] = await Promise.all([
-    getRequiredMerchant(),
-    getRequiredAppUser(),
-  ]);
+  const { merchant, appUser } = await getRequiredDashboardContext();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

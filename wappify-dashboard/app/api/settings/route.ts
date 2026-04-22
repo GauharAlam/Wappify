@@ -227,19 +227,21 @@ export async function PATCH(req: NextRequest) {
         updatedAt: updated.updatedAt.toISOString(),
       },
     });
-  } catch (error: unknown) {
+    } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[API /settings PATCH] FULL ERROR:", error);
+    
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         return NextResponse.json(
-          { success: false, message: "This WhatsApp number is already linked to another store." },
+          { success: false, message: "This WhatsApp number or Store Name is already in use." },
           { status: 400 }
         );
       }
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[API /settings PATCH] Error:", message);
+    
     return NextResponse.json(
-      { success: false, message: "Failed to update settings." },
+      { success: false, message: `Failed to update settings: ${message}` },
       { status: 500 }
     );
   }

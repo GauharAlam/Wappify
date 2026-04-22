@@ -156,12 +156,16 @@ export default function OnboardingPage() {
         body: JSON.stringify(data),
       });
 
-      if (!res.ok) throw new Error("Failed to save settings");
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to save settings");
+      }
 
       setCurrentStepIdx(STEPS.length - 1); // Go to success step
     } catch (err) {
       console.error(err);
-      alert("Error saving your profile. Please try again.");
+      const message = err instanceof Error ? err.message : "Error saving your profile. Please try again.";
+      alert(`⚠️ ${message}`);
     } finally {
       setIsSaving(false);
     }
