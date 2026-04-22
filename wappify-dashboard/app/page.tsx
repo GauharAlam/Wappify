@@ -660,7 +660,7 @@ export default function LandingPage() {
                     <h5 className="font-bold text-slate-900 mb-6 uppercase text-xs tracking-widest">Company</h5>
                     <ul className="space-y-4 text-sm text-slate-500 font-bold">
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">About Us</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Blog</a></li>
+                        <li><Link href="/blog" className="hover:text-emerald-600 transition-colors">Blog</Link></li>
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">Careers</a></li>
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">Legal</a></li>
                     </ul>
@@ -671,7 +671,7 @@ export default function LandingPage() {
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">Help Center</a></li>
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">API Docs</a></li>
                         <li><a href="#" className="hover:text-emerald-600 transition-colors">Status</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Contact</a></li>
+                        <li><a href="mailto:gauhar54995@gmail.com" className="hover:text-emerald-600 transition-colors">Contact</a></li>
                     </ul>
                 </div>
             </div>
