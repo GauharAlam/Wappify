@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 
+export const dynamic = "force-dynamic";
+
 // Middleware to ensure user is an ADMIN
 const requireAdmin = async () => {
   const session = await auth();
