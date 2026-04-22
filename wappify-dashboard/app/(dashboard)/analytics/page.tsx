@@ -21,7 +21,9 @@ export default async function AnalyticsPage() {
     orderBy: { createdAt: "asc" },
   });
 
-  const totalCustomers = await prisma.customer.count({});
+  const totalCustomers = await prisma.customer.count({
+    where: { orders: { some: { merchantId: merchant.id } } },
+  });
 
   // ── 2. Aggregations ────────────────────────
   const totalRevenue = orders.reduce((sum, o) => sum + Number(o.totalAmount), 0);

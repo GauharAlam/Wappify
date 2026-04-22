@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
 import { Prisma } from "@prisma/client";
+import { getAuthContext } from "@/lib/auth-utils";
+import { generateStoreCode } from "@/lib/store-code";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -65,16 +66,16 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
 
-  if (!merchantId) {
+  if (!context?.appUser?.id) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   try {
 
     const body = await req.json();
+    const existingMerchant = context.merchant;
 
     // ── Whitelist only the fields that are safe to update ─────────────────
     // Never allow merchantId, id, or createdAt to be overwritten via API.
@@ -113,12 +114,28 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    const nextName =
+      (typeof name === "string" && name.trim()) ||
+      existingMerchant?.name ||
+      context.appUser.name ||
+      "My Store";
+    const nextWhatsappNumber =
+      (typeof whatsappNumber === "string" && whatsappNumber.trim()) ||
+      existingMerchant?.whatsappNumber ||
+      null;
+
+    if (!existingMerchant && !nextWhatsappNumber) {
+      return NextResponse.json(
+        { success: false, message: "WhatsApp number is required to create a store." },
+        { status: 400 }
+      );
+    }
+
     // Build the update payload — only include keys that were actually sent
     const updateData: Record<string, unknown> = {};
 
-    if (typeof name === "string" && name.trim()) {
-      updateData.name = name.trim();
-    }
+    updateData.name = nextName;
+    updateData.storeCode = generateStoreCode(nextName);
 
     if (typeof whatsappNumber === "string" && whatsappNumber.trim()) {
       updateData.whatsappNumber = whatsappNumber.trim();
@@ -140,28 +157,67 @@ export async function PATCH(req: NextRequest) {
       updateData.aiContext = aiContext.trim() || null;
     }
 
-    if (Object.keys(updateData).length === 0) {
+    if (
+      Object.keys(updateData).length === 2 &&
+      updateData.name === existingMerchant?.name &&
+      updateData.storeCode === existingMerchant?.storeCode
+    ) {
       return NextResponse.json(
         { success: false, message: "No valid fields provided for update." },
         { status: 400 }
       );
     }
 
-    const updated = await prisma.merchant.update({
-      where: { id: merchantId },
-      data: updateData,
-      select: {
-        id: true,
-        name: true,
-        whatsappNumber: true,
-        twilioAccountSid: true,
-        razorpayKeyId: true,
-        aiContext: true,
-        updatedAt: true,
-      },
-    });
+    const updated = existingMerchant
+      ? await prisma.merchant.update({
+          where: { id: existingMerchant.id },
+          data: updateData,
+          select: {
+            id: true,
+            name: true,
+            whatsappNumber: true,
+            storeCode: true,
+            razorpayKeyId: true,
+            upiId: true,
+            aiContext: true,
+            updatedAt: true,
+          },
+        })
+      : await prisma.merchant.create({
+          data: {
+            userId: context.appUser.id,
+            name: nextName,
+            whatsappNumber: nextWhatsappNumber!,
+            storeCode: generateStoreCode(nextName),
+            razorpayKeyId:
+              typeof razorpayKeyId === "string"
+                ? razorpayKeyId.trim() || null
+                : null,
+            razorpayKeySecret:
+              typeof razorpayKeySecret === "string" &&
+              razorpayKeySecret.trim()
+                ? razorpayKeySecret.trim()
+                : null,
+            upiId: typeof upiId === "string" ? upiId.trim() || null : null,
+            aiContext:
+              typeof aiContext === "string" ? aiContext.trim() || null : null,
+          },
+          select: {
+            id: true,
+            name: true,
+            whatsappNumber: true,
+            storeCode: true,
+            razorpayKeyId: true,
+            upiId: true,
+            aiContext: true,
+            updatedAt: true,
+          },
+        });
 
-    console.log(`[API /settings PATCH] Merchant ${merchantId} updated fields:`, Object.keys(updateData));
+    console.log(
+      `[API /settings PATCH] Merchant ${updated.id} updated fields:`,
+      Object.keys(updateData),
+    );
 
     return NextResponse.json({
       success: true,
@@ -175,7 +231,7 @@ export async function PATCH(req: NextRequest) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
         return NextResponse.json(
-          { success: false, message: "This WhatsApp number or Twilio account is already linked to another store." },
+          { success: false, message: "This WhatsApp number is already linked to another store." },
           { status: 400 }
         );
       }

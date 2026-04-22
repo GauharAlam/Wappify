@@ -1,6 +1,6 @@
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { getAuthContext } from "@/lib/auth-utils";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +8,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const context = await getAuthContext();
+
+    if (!context?.appUser?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -19,9 +20,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const merchant = await prisma.merchant.findFirst({
-        where: { userId: session.user.id }
-    });
+    const merchant = context.merchant;
 
     if (!merchant || !merchant.whatsappNumber) {
         return NextResponse.json({ error: "WhatsApp not configured. Complete onboarding first." }, { status: 400 });

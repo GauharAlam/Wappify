@@ -1,9 +1,23 @@
-import NextAuth from "next-auth";
-import authConfig from "./auth.config";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export const { auth: middleware } = NextAuth(authConfig);
+const isPublicRoute = createRouteMatcher([
+  "/",
+  "/login(.*)",
+  "/register(.*)",
+  "/blog(.*)",
+  "/api/webhook(.*)",
+  "/api/webhooks(.*)",
+]);
 
-// Match everything except static assets and public landing pages
+export default clerkMiddleware(async (auth, req) => {
+  if (!isPublicRoute(req)) {
+    await auth.protect();
+  }
+});
+
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|.*\\.svg$|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|favicon.ico|$).*)"],
+  matcher: [
+    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)(.*)",
+  ],
 };

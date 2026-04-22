@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { LogOut, Settings, User } from "lucide-react";
-import { signOut } from "next-auth/react";
+import { LogOut, User } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
 
 interface UserMenuProps {
   initials: string;
@@ -13,6 +13,7 @@ interface UserMenuProps {
 export default function UserMenu({ initials, name, email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { signOut } = useClerk();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function UserMenu({ initials, name, email }: UserMenuProps) {
           <div className="border-t p-1">
             <button
               className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 outline-none transition-colors"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ redirectUrl: "/login" })}
             >
               <LogOut className="h-4 w-4" />
               <span>Sign out</span>

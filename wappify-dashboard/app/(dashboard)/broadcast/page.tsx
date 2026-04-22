@@ -20,6 +20,11 @@ export default async function BroadcastPage() {
   // Ideally, we'd have a Merchant-Customer join table, but for now
   // we'll fetch all unique customers.
   const customers = await prisma.customer.findMany({
+    where: {
+      orders: {
+        some: { merchantId: merchant.id },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: 1000,
   });

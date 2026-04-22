@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -9,7 +8,6 @@ import {
   ShoppingCart,
   Package,
   Settings,
-  Zap,
   TrendingUp,
   CreditCard,
   LogOut,
@@ -17,7 +15,8 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useSession, signOut } from "next-auth/react";
+import { useClerk } from "@clerk/nextjs";
+import type { UserRole } from "@prisma/client";
 
 // ─────────────────────────────────────────────
 // Nav config
@@ -65,12 +64,19 @@ const NAV_ITEMS = [
 // Sidebar
 // ─────────────────────────────────────────────
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const { data: session } = useSession();
+interface SidebarProps {
+  merchantName: string;
+  email?: string;
+  role: UserRole;
+}
 
-  const merchantName = session?.user?.name || "My Store";
-  const email = session?.user?.email || "merchant@wappify.com";
+export default function Sidebar({
+  merchantName,
+  email,
+  role,
+}: SidebarProps) {
+  const pathname = usePathname();
+  const { signOut } = useClerk();
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r bg-card">
@@ -94,7 +100,7 @@ export default function Sidebar() {
 
         {(() => {
           const items = [...NAV_ITEMS];
-          if ((session?.user as any)?.role === "ADMIN") {
+          if (role === "ADMIN") {
             items.push({
               href: "/admin",
               label: "Admin Panel",
@@ -146,7 +152,9 @@ export default function Sidebar() {
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs font-semibold">{merchantName}</p>
-            <p className="truncate text-[10px] text-muted-foreground">{email}</p>
+            <p className="truncate text-[10px] text-muted-foreground">
+              {email || "merchant@wappify.com"}
+            </p>
           </div>
 
           {/* Online dot */}
@@ -154,7 +162,7 @@ export default function Sidebar() {
         </div>
 
         <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={() => signOut({ redirectUrl: "/login" })}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
         >
           <LogOut className="h-4 w-4" />

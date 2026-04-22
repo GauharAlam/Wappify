@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { PLAN_CONFIG } from "@/lib/razorpay-billing";
+import { getAuthContext } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +14,17 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   try {
-    // ── Auth check ──────────────────────────
-    const session = await auth();
+    const context = await getAuthContext();
 
-    if (!session?.user?.id) {
+    if (!context?.appUser?.id) {
       return NextResponse.json(
         { success: false, message: "Unauthorized" },
         { status: 401 }
       );
     }
 
-    // ── Find merchant + subscription ────────
     const merchant = await prisma.merchant.findFirst({
-      where: { userId: session.user.id },
+      where: { userId: context.appUser.id },
       include: { subscription: true },
     });
 

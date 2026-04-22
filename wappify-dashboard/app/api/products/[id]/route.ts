@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -143,8 +143,8 @@ export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

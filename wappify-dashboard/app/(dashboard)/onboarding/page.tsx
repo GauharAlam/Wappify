@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { generateStoreCode } from "@/lib/store-code";
 
 // ─────────────────────────────────────────────
 // Types & Constants
@@ -41,17 +42,6 @@ interface OnboardingData {
   razorpayKeySecret: string;
   aiContext: string;
 }
-
-// ─────────────────────────────────────────────
-// Store Code generator
-// ─────────────────────────────────────────────
-
-const generateStoreCode = (name: string): string => {
-  return name
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 12) || "STORE";
-};
 
 // ─────────────────────────────────────────────
 // Sub-components
@@ -196,7 +186,7 @@ export default function OnboardingPage() {
                 Let&apos;s set up your Store
               </h1>
               <p className="text-neutral-500 max-w-md mx-auto">
-                Complete these 4 simple steps to launch your WhatsApp Commerce platform. No API keys needed!
+                Complete these 4 simple steps to launch your WhatsApp Commerce platform after secure Clerk sign up.
               </p>
             </motion.div>
           )}

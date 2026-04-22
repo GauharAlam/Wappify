@@ -2,11 +2,13 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import NotificationMenu from "./NotificationMenu";
 import UserMenu from "./UserMenu";
-import { auth } from "@/auth";
 
-export default async function Header() {
-  const session = await auth();
-  const userName = session?.user?.name || "Merchant";
+interface HeaderProps {
+  userName: string;
+  email?: string;
+}
+
+export default function Header({ userName, email }: HeaderProps) {
   const initials = userName.substring(0, 2).toUpperCase();
 
   return (
@@ -30,7 +32,7 @@ export default async function Header() {
         <UserMenu 
           initials={initials} 
           name={userName} 
-          email={session?.user?.email || undefined} 
+          email={email} 
         />
       </div>
     </header>

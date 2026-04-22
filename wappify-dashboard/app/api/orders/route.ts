@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -132,8 +132,8 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -172,7 +172,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // ── Fetch current order ──────────────────────
-    const order = await prisma.order.findUnique({
+    const order = await prisma.order.findFirst({
       where: { id: orderId as string, merchantId },
       select: { id: true, status: true },
     });

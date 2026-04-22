@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await auth();
-  const merchantId = session?.user?.merchantId;
+  const context = await getAuthContext();
+  const merchantId = context?.merchant?.id;
 
   if (!merchantId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
@@ -31,7 +30,9 @@ export async function GET() {
             ? { merchantId, status: "PENDING" }
             : { status: "PENDING" },
         }),
-        prisma.customer.count(),
+        prisma.customer.count({
+          where: { orders: { some: { merchantId } } },
+        }),
       ]);
 
     const totalRevenue = paidOrders.reduce(

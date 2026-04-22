@@ -1,16 +1,12 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { getRequiredAdminUser } from "@/lib/auth-utils";
 
 export default async function DashboardAdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
-
-  if (!session?.user || session.user.role !== "ADMIN") {
-    redirect("/dashboard");
-  }
+  await getRequiredAdminUser();
 
   return <>{children}</>;
 }

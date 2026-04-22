@@ -1,21 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/auth";
+import { getAuthContext } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
 // Middleware to ensure user is an ADMIN
 const requireAdmin = async () => {
-  const session = await auth();
-  if (!session?.user?.id) return null;
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { role: true },
-  });
-
-  if (user?.role !== "ADMIN") return null;
-  return user;
+  const context = await getAuthContext();
+  if (!context?.appUser?.id) return null;
+  if (context.appUser.role !== "ADMIN") return null;
+  return context.appUser;
 };
 
 export async function GET() {
