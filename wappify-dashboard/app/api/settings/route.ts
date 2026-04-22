@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { Prisma } from "@prisma/client";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await auth();
   const merchantId = session?.user?.merchantId;

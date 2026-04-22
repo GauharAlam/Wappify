@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 
+export const dynamic = "force-dynamic";
+
 // ─────────────────────────────────────────────
 // GET /api/products
 // Returns all products for the current merchant,

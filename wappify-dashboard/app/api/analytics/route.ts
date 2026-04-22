@@ -4,6 +4,8 @@ import { startOfDay, subDays, endOfDay } from "date-fns";
 
 import { auth } from "@/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const session = await auth();
   const merchantId = session?.user?.merchantId;
