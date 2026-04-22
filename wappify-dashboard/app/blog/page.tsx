@@ -80,7 +80,7 @@ export default function BlogDeepDivePage() {
 
           <h2 className="text-2xl font-bold text-slate-900 mt-12 mb-6">The AI Paradigm Shift</h2>
           <p>
-            Historically, the barrier to entry for conversational commerce was human capital. Small businesses could not afford to have customer service representatives manually responding to inquiries 24/7. This is where Large Language Models (LLMs) like Google's Gemini have completely altered the landscape.
+            Historically, the barrier to entry for conversational commerce was human capital. Small businesses could not afford to have customer service representatives manually responding to inquiries 24/7. This is where Large Language Models (LLMs) like Google&apos;s Gemini have completely altered the landscape.
           </p>
           <p>
             By feeding a brand&apos;s specific context and product catalog into an AI, platforms like Wappify allow the AI to act as a highly knowledgeable, perfectly polite salesperson. Our data shows that AI chatbots capable of understanding natural language intent (e.g., &quot;I need a gift for my mom who loves gardening under $50&quot;) convert browsers into buyers 3x faster than traditional search bars.
