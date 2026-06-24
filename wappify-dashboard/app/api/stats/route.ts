@@ -6,9 +6,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -17,21 +17,21 @@ export async function GET() {
     const [totalOrders, paidOrders, pendingOrders, totalCustomers] =
       await Promise.all([
         prisma.order.count({
-          where: merchantId ? { merchantId } : undefined,
+          where: orgId ? { orgId } : undefined,
         }),
         prisma.order.findMany({
-          where: merchantId
-            ? { merchantId, status: "PAID" }
+          where: orgId
+            ? { orgId, status: "PAID" }
             : { status: "PAID" },
           select: { totalAmount: true },
         }),
         prisma.order.count({
-          where: merchantId
-            ? { merchantId, status: "PENDING" }
+          where: orgId
+            ? { orgId, status: "PENDING" }
             : { status: "PENDING" },
         }),
-        prisma.customer.count({
-          where: { orders: { some: { merchantId } } },
+        prisma.contact.count({
+          where: { orgId },
         }),
       ]);
 

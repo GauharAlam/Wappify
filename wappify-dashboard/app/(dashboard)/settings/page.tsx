@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
 import SettingsForm from "@/components/settings/SettingsForm";
 import { Settings } from "lucide-react";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -23,6 +23,7 @@ export type MerchantSettings = {
   razorpayKeySecret: string | null;
   upiId: string | null;
   aiContext: string | null;
+  businessHoursSchedule: any | null;
 };
 
 // ─────────────────────────────────────────────
@@ -30,7 +31,7 @@ export type MerchantSettings = {
 // ─────────────────────────────────────────────
 
 export default async function SettingsPage() {
-  const merchant = await getRequiredMerchant();
+  const org = await getRequiredOrg();
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -48,7 +49,7 @@ export default async function SettingsPage() {
       </div>
 
       {/* ── Settings Form ───────────────────── */}
-      <SettingsForm merchant={merchant} />
+      <SettingsForm merchant={org} />
     </div>
   );
 }

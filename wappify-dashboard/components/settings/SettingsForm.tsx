@@ -29,6 +29,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { MerchantSettings } from "@/app/(dashboard)/settings/page";
+import { Clock, Plus, Trash2 } from "lucide-react";
 
 // ─────────────────────────────────────────────
 // Types
@@ -49,6 +50,8 @@ interface FormState {
   upiId: string;
   // AI
   aiContext: string;
+  // Business Hours
+  businessHoursSchedule: any;
 }
 
 type SectionStatus = "idle" | "saving" | "saved" | "error";
@@ -295,6 +298,19 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
     razorpayKeySecret: merchant?.razorpayKeySecret ?? "",
     upiId: merchant?.upiId ?? "",
     aiContext: merchant?.aiContext ?? "",
+    businessHoursSchedule: merchant?.businessHoursSchedule ?? {
+      enabled: false,
+      schedule: {
+        mon: { start: "09:00", end: "18:00", closed: false },
+        tue: { start: "09:00", end: "18:00", closed: false },
+        wed: { start: "09:00", end: "18:00", closed: false },
+        thu: { start: "09:00", end: "18:00", closed: false },
+        fri: { start: "09:00", end: "18:00", closed: false },
+        sat: { start: "09:00", end: "18:00", closed: true },
+        sun: { start: "09:00", end: "18:00", closed: true }
+      },
+      outOfOfficeMessage: "We are currently out of office. We will get back to you during business hours."
+    },
   });
 
   // ── Per-section save status ─────────────────
@@ -307,6 +323,10 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
     message: null,
   });
   const [aiStatus, setAiStatus] = React.useState<SectionState>({
+    status: "idle",
+    message: null,
+  });
+  const [hoursStatus, setHoursStatus] = React.useState<SectionState>({
     status: "idle",
     message: null,
   });
@@ -392,6 +412,15 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
       { aiContext: form.aiContext },
       setAiStatus,
       "AI system prompt saved successfully!",
+    );
+  };
+
+  const handleHoursSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    patchSettings(
+      { businessHoursSchedule: form.businessHoursSchedule },
+      setHoursStatus,
+      "Business hours saved successfully!",
     );
   };
 
@@ -720,6 +749,119 @@ Store policies:
 
             <div className="flex justify-end border-t pt-3">
               <SaveButton status={aiStatus.status} />
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* ══════════════════════════════════════ */}
+      {/* Section 4: Business Hours             */}
+      {/* ══════════════════════════════════════ */}
+
+      <Card>
+        <SectionHeader
+          icon={Clock}
+          iconClass="text-amber-600"
+          bgClass="bg-amber-100"
+          title="Business Hours"
+          description="Configure your working hours. The 'OUTSIDE_HOURS' automation trigger uses this schedule."
+        />
+
+        <Separator />
+
+        <CardContent className="pt-5">
+          <form onSubmit={handleHoursSubmit} className="space-y-6">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="hoursEnabled"
+                checked={form.businessHoursSchedule?.enabled}
+                onChange={(e) => setForm({
+                  ...form,
+                  businessHoursSchedule: { ...form.businessHoursSchedule, enabled: e.target.checked }
+                })}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <label htmlFor="hoursEnabled" className="text-sm font-medium">
+                Enable Business Hours
+              </label>
+            </div>
+
+            {form.businessHoursSchedule?.enabled && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
+                    <div key={day} className="flex items-center gap-3 border rounded-lg p-3 bg-muted/20">
+                      <div className="w-16 font-semibold text-sm uppercase tracking-wider">{day}</div>
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="checkbox"
+                          checked={!form.businessHoursSchedule.schedule[day].closed}
+                          onChange={(e) => {
+                            const newSchedule = { ...form.businessHoursSchedule.schedule };
+                            newSchedule[day].closed = !e.target.checked;
+                            setForm({ ...form, businessHoursSchedule: { ...form.businessHoursSchedule, schedule: newSchedule }});
+                          }}
+                          className="h-4 w-4"
+                        />
+                        <span className="text-xs">Open</span>
+                      </div>
+                      
+                      {!form.businessHoursSchedule.schedule[day].closed && (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={form.businessHoursSchedule.schedule[day].start}
+                            onChange={(e) => {
+                              const newSchedule = { ...form.businessHoursSchedule.schedule };
+                              newSchedule[day].start = e.target.value;
+                              setForm({ ...form, businessHoursSchedule: { ...form.businessHoursSchedule, schedule: newSchedule }});
+                            }}
+                            className="h-8 text-xs w-24"
+                          />
+                          <span className="text-xs text-muted-foreground">to</span>
+                          <Input
+                            type="time"
+                            value={form.businessHoursSchedule.schedule[day].end}
+                            onChange={(e) => {
+                              const newSchedule = { ...form.businessHoursSchedule.schedule };
+                              newSchedule[day].end = e.target.value;
+                              setForm({ ...form, businessHoursSchedule: { ...form.businessHoursSchedule, schedule: newSchedule }});
+                            }}
+                            className="h-8 text-xs w-24"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <Field
+                  id="outOfOfficeMessage"
+                  label="Out of Office Message (Fallback)"
+                  hint="This message can be used by automation rules or sent automatically if no rule is configured."
+                >
+                  <Textarea
+                    id="outOfOfficeMessage"
+                    value={form.businessHoursSchedule?.outOfOfficeMessage || ""}
+                    onChange={(e) => setForm({
+                      ...form,
+                      businessHoursSchedule: { ...form.businessHoursSchedule, outOfOfficeMessage: e.target.value }
+                    })}
+                    rows={3}
+                    className="resize-y"
+                  />
+                </Field>
+              </div>
+            )}
+
+            <SectionFeedback
+              status={hoursStatus.status}
+              message={hoursStatus.message}
+            />
+
+            <div className="flex justify-end border-t pt-3">
+              <SaveButton status={hoursStatus.status} />
             </div>
           </form>
         </CardContent>

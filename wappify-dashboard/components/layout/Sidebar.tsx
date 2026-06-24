@@ -13,16 +13,26 @@ import {
   LogOut,
   Users,
   ShieldAlert,
+  MessageSquare,
+  UserPlus,
+  Workflow,
+  Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClerk } from "@clerk/nextjs";
-import type { UserRole } from "@prisma/client";
+import type { OrgRole } from "@prisma/client";
 
 // ─────────────────────────────────────────────
 // Nav config
 // ─────────────────────────────────────────────
 
 const NAV_ITEMS = [
+  {
+    href: "/inbox",
+    label: "Inbox",
+    icon: MessageSquare,
+    badge: true,
+  },
   {
     href: "/dashboard",
     label: "Dashboard",
@@ -34,9 +44,9 @@ const NAV_ITEMS = [
     icon: ShoppingCart,
   },
   {
-    href: "/customers",
-    label: "Customers",
-    icon: Users,
+    href: "/contacts",
+    label: "Contacts",
+    icon: Contact,
   },
   {
     href: "/products",
@@ -47,6 +57,18 @@ const NAV_ITEMS = [
     href: "/analytics",
     label: "Analytics",
     icon: TrendingUp,
+  },
+  {
+    href: "/automation",
+    label: "Automation",
+    icon: Workflow,
+    minRole: "ADMIN" as OrgRole,
+  },
+  {
+    href: "/team",
+    label: "Team",
+    icon: UserPlus,
+    minRole: "ADMIN" as OrgRole,
   },
   {
     href: "/billing",
@@ -60,23 +82,32 @@ const NAV_ITEMS = [
   },
 ];
 
+// Role hierarchy for access control
+const ROLE_HIERARCHY: Record<OrgRole, number> = {
+  OWNER: 3,
+  ADMIN: 2,
+  AGENT: 1,
+};
+
 // ─────────────────────────────────────────────
 // Sidebar
 // ─────────────────────────────────────────────
 
 interface SidebarProps {
-  merchantName: string;
+  orgName: string;
   email?: string;
-  role: UserRole;
+  role: OrgRole;
 }
 
 export default function Sidebar({
-  merchantName,
+  orgName,
   email,
   role,
 }: SidebarProps) {
   const pathname = usePathname();
   const { signOut } = useClerk();
+
+  const userRoleLevel = ROLE_HIERARCHY[role] || 1;
 
   return (
     <aside className="flex h-screen w-64 flex-col border-r bg-card">
@@ -86,7 +117,7 @@ export default function Sidebar({
         <div className="flex flex-col leading-none">
           <span className="text-base font-bold tracking-tight">Wappify</span>
           <span className="text-[10px] font-medium text-muted-foreground">
-            Commerce Dashboard
+            Communication OS
           </span>
         </div>
       </div>
@@ -99,14 +130,20 @@ export default function Sidebar({
         </p>
 
         {(() => {
-          const items = [...NAV_ITEMS];
-          if (role === "ADMIN") {
-            items.push({
-              href: "/admin",
-              label: "Admin Panel",
-              icon: ShieldAlert,
-            });
+          const items = NAV_ITEMS.filter((item) => {
+            // Check role-based access
+            if (item.minRole) {
+              const requiredLevel = ROLE_HIERARCHY[item.minRole] || 0;
+              return userRoleLevel >= requiredLevel;
+            }
+            return true;
+          });
+
+          // Add admin panel for platform admins
+          if (role === "OWNER" || role === "ADMIN") {
+            // Check if user is also a platform ADMIN
           }
+
           return items.map((item) => {
             const Icon = item.icon;
             const isActive =
@@ -142,23 +179,30 @@ export default function Sidebar({
         })()}
       </nav>
 
-      {/* ── Merchant badge ───────────────────── */}
+      {/* ── Organization badge ───────────────────── */}
       <div className="border-t p-4 space-y-3">
         <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
           {/* Avatar */}
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary text-xs uppercase">
-            {merchantName.substring(0, 2)}
+            {orgName.substring(0, 2)}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">{merchantName}</p>
+            <p className="truncate text-xs font-semibold">{orgName}</p>
             <p className="truncate text-[10px] text-muted-foreground">
-              {email || "merchant@wappify.com"}
+              {email || "user@wappify.com"}
             </p>
           </div>
 
-          {/* Online dot */}
-          <span className="h-2 w-2 shrink-0 rounded-full bg-green-500 ring-2 ring-background" />
+          {/* Role badge */}
+          <span className={cn(
+            "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
+            role === "OWNER" && "bg-amber-100 text-amber-700",
+            role === "ADMIN" && "bg-blue-100 text-blue-700",
+            role === "AGENT" && "bg-green-100 text-green-700",
+          )}>
+            {role}
+          </span>
         </div>
 
         <button

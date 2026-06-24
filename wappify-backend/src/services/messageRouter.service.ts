@@ -7,7 +7,7 @@ import {
   CatalogProduct,
 } from "./whatsapp.service";
 import {
-  findOrCreateCustomer,
+  findOrCreateContact,
   createPendingOrder,
   updateOrderWithRazorpayLink,
 } from "./order.service";
@@ -19,113 +19,102 @@ import {
   clearConversation,
 } from "./conversationStore";
 import { prisma } from "../lib/prisma";
+import { isWithinBusinessHours } from "../lib/businessHours";
 
 // ─────────────────────────────────────────────
 // Chat Message Logger (persists to DB for CRM)
 // ─────────────────────────────────────────────
 
-const logChatMessage = (
-  merchantId: string,
+const logMessage = async (
+  orgId: string,
   customerWaId: string,
   sender: "customer" | "bot",
   message: string,
-): void => {
-  if (!merchantId) return;
+  customerName?: string,
+) => {
+  if (!orgId) return null;
 
-  // Fire-and-forget — don't block the message flow
-  prisma.chatMessage
-    .create({
-      data: { merchantId, customerWaId, sender, message },
-    })
-    .catch((err: any) => {
-      console.error("[CHAT LOG] Failed to persist message:", err?.message);
+  try {
+    // 1. Upsert contact
+    const contact = await prisma.contact.upsert({
+      where: { orgId_waId: { orgId, waId: customerWaId } },
+      update: { name: customerName || undefined },
+      create: { orgId, waId: customerWaId, name: customerName || null },
     });
+
+    // 2. Upsert conversation
+    const conversation = await prisma.conversation.upsert({
+      where: { orgId_contactId: { orgId, contactId: contact.id } },
+      update: {
+        lastMessageAt: new Date(),
+        lastMessagePreview: message.slice(0, 100),
+        unreadCount: sender === "customer" ? { increment: 1 } : undefined,
+        status: sender === "customer" ? "OPEN" : undefined,
+      },
+      create: {
+        orgId,
+        contactId: contact.id,
+        status: "OPEN",
+        lastMessageAt: new Date(),
+        lastMessagePreview: message.slice(0, 100),
+        unreadCount: sender === "customer" ? 1 : 0,
+      },
+    });
+
+    // 3. Create message record
+    await prisma.message.create({
+      data: {
+        orgId,
+        conversationId: conversation.id,
+        direction: sender === "customer" ? "INBOUND" : "OUTBOUND",
+        content: message,
+        type: "TEXT",
+      },
+    });
+
+    return conversation;
+  } catch (err: any) {
+    console.error("[CHAT LOG] Failed to persist message:", err?.message);
+    return null;
+  }
 };
 
 // ─────────────────────────────────────────────
-// Types
+// Automation Rules Evaluator
 // ─────────────────────────────────────────────
 
-type MessageType =
-  | "GREETING"
-  | "CATALOG_REQUEST"
-  | "ORDER_REQUEST"
-  | "AI_QUERY";
+const evaluateAutomationRules = async (
+  orgId: string,
+  messageText: string,
+  isFirstMessage: boolean,
+  isOutsideHours: boolean,
+  isMedia: boolean
+) => {
+  const rules = await prisma.automationRule.findMany({
+    where: { orgId, isActive: true },
+    orderBy: { priority: "asc" },
+  });
 
-// ─────────────────────────────────────────────
-// Classifier — pure function, no side effects
-// ─────────────────────────────────────────────
+  const normalizedText = messageText.toLowerCase().trim();
 
-const classifyMessage = (text: string): MessageType => {
-  const lower = text.toLowerCase().trim();
+  for (const rule of rules) {
+    if (rule.trigger === "OUTSIDE_HOURS" && isOutsideHours) return rule;
+    if (rule.trigger === "FIRST_MESSAGE" && isFirstMessage) return rule;
+    if (rule.trigger === "MEDIA_RECEIVED" && isMedia) return rule;
+    if (rule.trigger === "ALL_MESSAGES") return rule;
 
-  // ── Greeting patterns ──────────────────────
-  const greetingPatterns = [
-    "hi",
-    "hello",
-    "hey",
-    "hlo",
-    "hii",
-    "hiii",
-    "namaste",
-    "namaskar",
-    "start",
-    "hai",
-    "hy",
-    "sup",
-    "good morning",
-    "good evening",
-    "good afternoon",
-  ];
-  if (greetingPatterns.some((g) => lower === g || lower.startsWith(g + " "))) {
-    return "GREETING";
+    if (rule.trigger === "KEYWORD") {
+      const matchFound = rule.keywords.some((kw) => {
+        const lowerKw = kw.toLowerCase();
+        if (rule.matchMode === "EXACT") return normalizedText === lowerKw;
+        if (rule.matchMode === "STARTS_WITH") return normalizedText.startsWith(lowerKw);
+        return normalizedText.includes(lowerKw); // CONTAINS
+      });
+      if (matchFound) return rule;
+    }
   }
 
-  // ── Catalog request patterns ───────────────
-  const catalogPatterns = [
-    "1",
-    "catalog",
-    "catalogue",
-    "products",
-    "collection",
-    "dikhao",
-    "dekho",
-    "show",
-    "list",
-    "kya hai",
-    "kya kya hai",
-    "saman",
-    "items",
-    "product dikhao",
-    "products dikhao",
-    "product list",
-  ];
-  if (catalogPatterns.some((k) => lower === k || lower.includes(k))) {
-    return "CATALOG_REQUEST";
-  }
-
-  // ── Order / buy patterns ───────────────────
-  const orderPatterns = [
-    "2",
-    "buy",
-    "order",
-    "kharidna",
-    "kharidni",
-    "chahiye",
-    "lena hai",
-    "checkout",
-    "purchase",
-    "book",
-    "add to cart",
-    "cart",
-    "place order",
-  ];
-  if (orderPatterns.some((k) => lower === k || lower.includes(k))) {
-    return "ORDER_REQUEST";
-  }
-
-  // ── Everything else → Gemini AI ───────────
-  return "AI_QUERY";
+  return null;
 };
 
 // ─────────────────────────────────────────────
@@ -143,11 +132,11 @@ interface DBProduct {
 /**
  * Fetches all active products with stock > 0 from the database.
  */
-const getActiveProducts = async (merchantId: string): Promise<DBProduct[]> => {
+const getActiveProducts = async (orgId: string): Promise<DBProduct[]> => {
 
   const products = await prisma.product.findMany({
     where: {
-      ...(merchantId ? { merchantId } : {}),
+      ...(orgId ? { orgId } : {}),
       isActive: true,
       stock: { gt: 0 },
     },
@@ -173,11 +162,11 @@ const getActiveProducts = async (merchantId: string): Promise<DBProduct[]> => {
 /**
  * Fetches ALL active products (including out-of-stock) for matching.
  */
-const getAllActiveProducts = async (merchantId: string): Promise<DBProduct[]> => {
+const getAllActiveProducts = async (orgId: string): Promise<DBProduct[]> => {
 
   const products = await prisma.product.findMany({
     where: {
-      ...(merchantId ? { merchantId } : {}),
+      ...(orgId ? { orgId } : {}),
       isActive: true,
     },
     select: {
@@ -202,11 +191,11 @@ const getAllActiveProducts = async (merchantId: string): Promise<DBProduct[]> =>
 /**
  * Fetches the merchant name from the database.
  */
-const getMerchantName = async (merchantId: string): Promise<string> => {
-  if (!merchantId) return "Our Store";
+const getMerchantName = async (orgId: string): Promise<string> => {
+  if (!orgId) return "Our Store";
 
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: merchantId },
+  const merchant = await prisma.organization.findUnique({
+    where: { id: orgId },
     select: { name: true },
   });
 
@@ -226,11 +215,11 @@ interface PaymentConfig {
   merchantName: string;
 }
 
-const getPaymentConfig = async (merchantId: string): Promise<PaymentConfig> => {
-  if (!merchantId) return { mode: "none", merchantName: "Our Store" };
+const getPaymentConfig = async (orgId: string): Promise<PaymentConfig> => {
+  if (!orgId) return { mode: "none", merchantName: "Our Store" };
 
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: merchantId },
+  const merchant = await prisma.organization.findUnique({
+    where: { id: orgId },
     select: {
       name: true,
       razorpayKeyId: true,
@@ -297,7 +286,7 @@ const findMatchingProduct = (
 // ─────────────────────────────────────────────
 
 const handleBuyRequest = async (
-  merchantId: string,
+  orgId: string,
   from: string,
   productQuery: string,
   customerName?: string,
@@ -307,7 +296,7 @@ const handleBuyRequest = async (
   );
 
   // ── Step 1: Find product from DB ────────────
-  const allProducts = await getAllActiveProducts(merchantId);
+  const allProducts = await getAllActiveProducts(orgId);
   const matchedProduct = findMatchingProduct(productQuery, allProducts);
 
   if (!matchedProduct) {
@@ -315,7 +304,7 @@ const handleBuyRequest = async (
       `[ROUTER] No product match found for query: "${productQuery}"`,
     );
     await sendTextMessage(
-      merchantId,
+      orgId,
       from,
       [
         `😅 Sorry! "*${productQuery}*" naam ka koi product nahi mila humari catalog mein.`,
@@ -333,7 +322,7 @@ const handleBuyRequest = async (
   // ── Step 2: Check stock ─────────────────────
   if (matchedProduct.stock <= 0) {
     await sendTextMessage(
-      merchantId,
+      orgId,
       from,
       [
         `😔 Uh oh! *${matchedProduct.name}* abhi out of stock hai.`,
@@ -345,10 +334,10 @@ const handleBuyRequest = async (
   }
 
   // ── Step 3: Check merchant config ──────────
-  if (!merchantId) {
-    console.error("[ROUTER] MERCHANT_ID is not set — cannot create order");
+  if (!orgId) {
+    console.error("[ROUTER] ORG_ID is not set — cannot create order");
     await sendTextMessage(
-      merchantId,
+      orgId,
       from,
       "😔 Kuch technical problem aayi. Please thodi der mein dobara try karein!",
     );
@@ -356,12 +345,12 @@ const handleBuyRequest = async (
   }
 
   // ── Step 4: Detect payment method ───────────
-  const paymentConfig = await getPaymentConfig(merchantId);
+  const paymentConfig = await getPaymentConfig(orgId);
 
   if (paymentConfig.mode === "none") {
     console.error("[ROUTER] No payment method configured — cannot create order");
     await sendTextMessage(
-      merchantId,
+      orgId,
       from,
       [
         `😔 Payment abhi setup nahi hua dukaan mein.`,
@@ -373,13 +362,13 @@ const handleBuyRequest = async (
   }
 
   try {
-    // ── Step 5: Upsert Customer in DB ──────────
-    const customer = await findOrCreateCustomer(from, customerName);
+    // ── Step 5: Upsert Contact in DB ──────────
+    const customer = await findOrCreateContact(orgId, from, customerName);
 
     // ── Step 6: Create PENDING Order in DB ─────
     const order = await createPendingOrder({
-      merchantId,
-      customerId: customer.id,
+      orgId,
+      contactId: customer.id,
       productId: matchedProduct.id,
       quantity: 1,
       pricePerUnit: matchedProduct.price,
@@ -423,7 +412,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
-      await sendTextMessage(merchantId, from, message);
+      await sendTextMessage(orgId, from, message);
       console.log(`[ROUTER] ✅ Razorpay link sent to ${from} for order #${shortOrderId}`);
     }
 
@@ -464,7 +453,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
-      await sendTextMessage(merchantId, from, message);
+      await sendTextMessage(orgId, from, message);
       console.log(`[ROUTER] ✅ UPI link sent to ${from} for order #${shortOrderId}`);
     }
 
@@ -474,7 +463,7 @@ const handleBuyRequest = async (
     console.error("[ROUTER] Stack  :", error?.stack || "No stack");
 
     await sendTextMessage(
-      merchantId,
+      orgId,
       from,
       [
         `😔 Order process mein kuch problem aayi!`,
@@ -491,126 +480,163 @@ const handleBuyRequest = async (
 // ─────────────────────────────────────────────
 
 export const routeMessage = async (
-  merchantId: string,
+  orgId: string,
   from: string,
   messageText: string,
   customerName?: string,
+  isMedia: boolean = false
 ): Promise<void> => {
   const trimmedText = messageText.trim();
 
-  if (!trimmedText) {
+  if (!trimmedText && !isMedia) {
     console.warn(`[ROUTER] Empty message received from ${from} — ignoring`);
     return;
   }
 
-  const messageType = classifyMessage(trimmedText);
+  // Fetch org details for business hours
+  const org = await prisma.organization.findUnique({
+    where: { id: orgId },
+    select: { name: true, businessHoursSchedule: true, timezone: true }
+  });
+
+  const merchantName = org?.name || "Our Store";
+
+  // Check if first message
+  const previousMessageCount = await prisma.message.count({
+    where: { orgId, conversation: { contact: { waId: from } }, direction: "INBOUND" }
+  });
+  const isFirstMessage = previousMessageCount === 0;
+
+  // Persist customer message (now awaitable to get conversation state)
+  const conversation = await logMessage(
+    orgId,
+    from,
+    "customer",
+    isMedia ? "[Media Message]" : trimmedText,
+    customerName
+  );
+
+  if (conversation?.isEscalated) {
+    console.log(`[ROUTER] Conversation ${conversation.id} is escalated to human. Bot skipping reply.`);
+    return;
+  }
 
   console.log("────────────────────────────────────────");
   console.log(`[ROUTER] From       : ${from}`);
   console.log(`[ROUTER] Customer   : ${customerName || "Unknown"}`);
-  console.log(`[ROUTER] Message    : "${trimmedText}"`);
-  console.log(`[ROUTER] Classified : ${messageType}`);
+  console.log(`[ROUTER] Message    : "${isMedia ? "[Media Message]" : trimmedText}"`);
   console.log("────────────────────────────────────────");
 
-  // Fetch merchant name once for this request
-  const merchantName = await getMerchantName(merchantId);
+  // Check business hours
+  const isOutsideHours = !isWithinBusinessHours(org?.businessHoursSchedule, org?.timezone);
 
-  // ── Persist customer message to DB (CRM) ────
-  logChatMessage(merchantId, from, "customer", trimmedText);
+  // Evaluate rules
+  const matchedRule = await evaluateAutomationRules(
+    orgId,
+    trimmedText,
+    isFirstMessage,
+    isOutsideHours,
+    isMedia
+  );
 
-  switch (messageType) {
-    // ── 1. Greeting ─────────────────────────
-    case "GREETING": {
-      console.log("[ROUTER] → Handler: GREETING");
-      // Clear conversation history on greeting (new session)
+  if (!matchedRule) {
+    console.log("[ROUTER] No rule matched, falling back to Gemini AI");
+    if (!isMedia) {
+      await handleForwardToAI(orgId, from, trimmedText);
+    }
+    return;
+  }
+
+  console.log(`[ROUTER] Matched Rule: ${matchedRule.name} (Action: ${matchedRule.action})`);
+
+  // Apply Tag if configured
+  if (matchedRule.tagId && conversation) {
+    await prisma.conversationTag.upsert({
+      where: {
+        conversationId_tagId: {
+          conversationId: conversation.id,
+          tagId: matchedRule.tagId
+        }
+      },
+      update: {},
+      create: {
+        conversationId: conversation.id,
+        tagId: matchedRule.tagId
+      }
+    });
+  }
+
+  // Execute Action
+  switch (matchedRule.action) {
+    case "SEND_TEXT":
+      if (matchedRule.responseText) {
+        logMessage(orgId, from, "bot", matchedRule.responseText);
+        await sendTextMessage(orgId, from, matchedRule.responseText);
+      }
+      break;
+    case "SEND_GREETING":
       clearConversation(from);
       const greetingMsg = `Namaste${customerName ? " " + customerName : ""}! 🙏 Welcome to ${merchantName}!\n\nHum aapki kya madad kar sakte hai?\n\n1️⃣ Product Catalog dekhein\n2️⃣ Order place karein\n3️⃣ Koi bhi sawaal poochein — AI jawab dega!`;
-      logChatMessage(merchantId, from, "bot", greetingMsg);
-      await sendGreetingMessage(merchantId, from, customerName, merchantName);
+      logMessage(orgId, from, "bot", greetingMsg);
+      await sendGreetingMessage(orgId, from, customerName, merchantName);
       break;
-    }
-
-    // ── 2. Catalog ──────────────────────────
-    case "CATALOG_REQUEST": {
-      console.log("[ROUTER] → Handler: CATALOG_REQUEST");
-      const activeProducts = await getActiveProducts(merchantId);
+    case "SEND_CATALOG":
+      const activeProducts = await getActiveProducts(orgId);
       const catalogProducts: CatalogProduct[] = activeProducts.map((p) => ({
         name: p.name,
         price: p.price,
         description: p.description,
         stock: p.stock,
       }));
-
       if (catalogProducts.length === 0) {
         const noProductMsg = "😔 Abhi koi product available nahi hai. Thodi der baad dobara try karein!";
-        logChatMessage(merchantId, from, "bot", noProductMsg);
-        await sendTextMessage(merchantId, from, noProductMsg);
+        logMessage(orgId, from, "bot", noProductMsg);
+        await sendTextMessage(orgId, from, noProductMsg);
       } else {
         const catalogMsg = `📦 ${merchantName} Catalog:\n` + catalogProducts.map((p, i) => `${i+1}. ${p.name} — ₹${p.price}`).join("\n");
-        logChatMessage(merchantId, from, "bot", catalogMsg);
-        await sendCatalogMessage(merchantId, from, catalogProducts, merchantName);
+        logMessage(orgId, from, "bot", catalogMsg);
+        await sendCatalogMessage(orgId, from, catalogProducts, merchantName);
       }
       break;
-    }
-
-    // ── 3. Order / Buy ───────────────────────
-    case "ORDER_REQUEST": {
-      console.log("[ROUTER] → Handler: ORDER_REQUEST");
-
-      const lower = trimmedText.toLowerCase();
-
-      // Check if this is a specific "buy [product name]" command
-      const buyCommandMatch = lower.match(/^buy\s+(.+)$/i);
-
-      if (buyCommandMatch) {
-        // e.g. "buy Classic Cotton Tee" → productQuery = "Classic Cotton Tee"
-        const productQuery = trimmedText.slice(4).trim();
-        await handleBuyRequest(merchantId, from, productQuery, customerName);
-      } else {
-        // Generic order intent — show menu with instructions
-        console.log("[ROUTER] Generic order intent — showing order init menu");
-        await sendOrderInitMessage(merchantId, from);
+    case "FORWARD_TO_AI":
+      if (!isMedia) {
+        const lower = trimmedText.toLowerCase();
+        const buyCommandMatch = lower.match(/^buy\s+(.+)$/i);
+        if (buyCommandMatch) {
+          const productQuery = trimmedText.slice(4).trim();
+          await handleBuyRequest(orgId, from, productQuery, customerName);
+        } else if (trimmedText === "2" || trimmedText.includes("order") || trimmedText.includes("buy")) {
+          await sendOrderInitMessage(orgId, from);
+        } else {
+          await handleForwardToAI(orgId, from, trimmedText);
+        }
       }
       break;
-    }
-
-    // ── 4. AI Query (Gemini) ────────────────
-    case "AI_QUERY": {
-      console.log("[ROUTER] → Handler: AI_QUERY (Gemini 1.5 Flash)");
-
-      // Get conversation history for this customer
-      const history = getConversationHistory(from);
-
-      // Store user message in conversation history
-      addToConversation(from, "user", trimmedText);
-
-      // Generate AI response with context
-      const aiResponse = await generateAIResponse(merchantId, trimmedText, history);
-
-      // Store AI response in conversation history
-      addToConversation(from, "model", aiResponse);
-
-      // Persist bot response to DB
-      logChatMessage(merchantId, from, "bot", aiResponse);
-
-      await sendTextMessage(merchantId, from, aiResponse);
+    case "ESCALATE_TO_HUMAN":
+      if (conversation) {
+        await prisma.conversation.update({
+          where: { id: conversation.id },
+          data: { isEscalated: true }
+        });
+        const escalateMsg = matchedRule.responseText || "Thank you. An agent will be with you shortly.";
+        logMessage(orgId, from, "bot", escalateMsg);
+        await sendTextMessage(orgId, from, escalateMsg);
+      }
       break;
-    }
-
-    // ── Fallback ────────────────────────────
-    default: {
-      console.warn(
-        "[ROUTER] Unknown classification — falling back to Gemini AI",
-      );
-      const history = getConversationHistory(from);
-      addToConversation(from, "user", trimmedText);
-
-      const fallbackResponse = await generateAIResponse(merchantId, trimmedText, history);
-
-      addToConversation(from, "model", fallbackResponse);
-      logChatMessage(merchantId, from, "bot", fallbackResponse);
-      await sendTextMessage(merchantId, from, fallbackResponse);
+    case "SET_TAG":
+      if (matchedRule.responseText) {
+        logMessage(orgId, from, "bot", matchedRule.responseText);
+        await sendTextMessage(orgId, from, matchedRule.responseText);
+      }
       break;
-    }
   }
+};
+
+const handleForwardToAI = async (orgId: string, from: string, trimmedText: string) => {
+  const history = getConversationHistory(from);
+  addToConversation(from, "user", trimmedText);
+  const aiResponse = await generateAIResponse(orgId, trimmedText, history);
+  addToConversation(from, "model", aiResponse);
+  logMessage(orgId, from, "bot", aiResponse);
+  await sendTextMessage(orgId, from, aiResponse);
 };

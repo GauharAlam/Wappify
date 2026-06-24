@@ -7,18 +7,18 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { merchant, appUser } = await getRequiredDashboardContext();
+  const { org, appUser, membership } = await getRequiredDashboardContext();
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar
-        merchantName={merchant.name}
+        orgName={org.name}
         email={appUser.email ?? undefined}
-        role={appUser.role}
+        role={membership.role}
       />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header
-          userName={appUser.name || merchant.name || "Merchant"}
+          userName={appUser.name || org.name || "User"}
           email={appUser.email ?? undefined}
         />
         <main className="flex-1 overflow-y-auto p-6 animate-fade-in">

@@ -5,43 +5,44 @@ import { prisma } from "../lib/prisma";
 // ─────────────────────────────────────────────
 
 export interface CreatePendingOrderParams {
-  merchantId: string;
-  customerId: string;
+  orgId: string;
+  contactId: string;
   productId: string;
   quantity: number;
   pricePerUnit: number;
 }
 
 // ─────────────────────────────────────────────
-// Customer Operations
+// Contact Operations
 // ─────────────────────────────────────────────
 
 /**
- * Finds an existing customer by WhatsApp ID or creates a new one.
+ * Finds an existing contact by WhatsApp ID within an org, or creates a new one.
  * This is the entry point for every inbound message — we always
- * ensure the customer exists in the DB before doing anything else.
+ * ensure the contact exists in the DB before doing anything else.
  */
-export const findOrCreateCustomer = async (
+export const findOrCreateContact = async (
+  orgId: string,
   waId: string,
   name?: string,
 ) => {
-  const customer = await prisma.customer.upsert({
-    where: { waId },
+  const contact = await prisma.contact.upsert({
+    where: { orgId_waId: { orgId, waId } },
     update: {
-      // Only update the name if a new one is provided
       ...(name ? { name } : {}),
     },
     create: {
+      orgId,
       waId,
       name: name ?? null,
     },
   });
 
   console.log(
-    `[ORDER SERVICE] Customer resolved — ID: ${customer.id} | waId: ${customer.waId} | Name: ${customer.name ?? "Unknown"}`,
+    `[ORDER SERVICE] Contact resolved — ID: ${contact.id} | waId: ${contact.waId} | Name: ${contact.name ?? "Unknown"}`,
   );
 
-  return customer;
+  return contact;
 };
 
 // ─────────────────────────────────────────────
@@ -53,18 +54,18 @@ export const findOrCreateCustomer = async (
  * Called right before generating a Razorpay payment link.
  */
 export const createPendingOrder = async (params: CreatePendingOrderParams) => {
-  const { merchantId, customerId, productId, quantity, pricePerUnit } = params;
+  const { orgId, contactId, productId, quantity, pricePerUnit } = params;
 
   const totalAmount = pricePerUnit * quantity;
 
   console.log(
-    `[ORDER SERVICE] Creating order — Merchant: ${merchantId} | Customer: ${customerId} | Product: ${productId} | Qty: ${quantity} | Total: ₹${totalAmount}`,
+    `[ORDER SERVICE] Creating order — Org: ${orgId} | Contact: ${contactId} | Product: ${productId} | Qty: ${quantity} | Total: ₹${totalAmount}`,
   );
 
   const order = await prisma.order.create({
     data: {
-      merchantId,
-      customerId,
+      orgId,
+      contactId,
       status: "PENDING",
       totalAmount,
       items: {
@@ -81,7 +82,7 @@ export const createPendingOrder = async (params: CreatePendingOrderParams) => {
           product: true,
         },
       },
-      customer: true,
+      contact: true,
     },
   });
 
@@ -116,7 +117,7 @@ export const updateOrderWithRazorpayLink = async (
 /**
  * Looks up an order by its stored Razorpay Payment Link ID and
  * marks it as PAID. Also stores the final Razorpay Payment ID.
- * Returns the fully populated order (with customer + items) so
+ * Returns the fully populated order (with contact + items) so
  * the webhook controller can send a WhatsApp confirmation.
  */
 export const markOrderAsPaid = async (
@@ -127,7 +128,6 @@ export const markOrderAsPaid = async (
     `[ORDER SERVICE] Marking order as PAID — Link ID: ${razorpayPaymentLinkId} | Payment ID: ${razorpayPaymentId}`,
   );
 
-  // We stored the payment link ID in razorpayOrderId field
   const existingOrder = await prisma.order.findFirst({
     where: { razorpayOrderId: razorpayPaymentLinkId },
   });
@@ -139,7 +139,6 @@ export const markOrderAsPaid = async (
     return null;
   }
 
-  // Guard against double-processing the same payment event
   if (existingOrder.status === "PAID") {
     console.warn(
       `[ORDER SERVICE] ⚠️ Order ${existingOrder.id} is already PAID — skipping duplicate event`,
@@ -154,7 +153,7 @@ export const markOrderAsPaid = async (
       razorpayPaymentId,
     },
     include: {
-      customer: true,
+      contact: true,
       items: {
         include: {
           product: true,
@@ -172,14 +171,12 @@ export const markOrderAsPaid = async (
 
 /**
  * Fetches a single order by its internal ID with full relations.
- * Useful for debugging or building an order detail endpoint later.
  */
 export const getOrderById = async (orderId: string) => {
   return prisma.order.findUnique({
     where: { id: orderId },
     include: {
-      customer: true,
-      merchant: true,
+      contact: true,
       items: {
         include: {
           product: true,
@@ -190,13 +187,13 @@ export const getOrderById = async (orderId: string) => {
 };
 
 /**
- * Fetches all orders for a given customer (by waId), newest first.
- * Useful for building an order history flow in WhatsApp later.
+ * Fetches all orders for a given contact (by waId), newest first.
  */
-export const getOrdersByCustomerWaId = async (waId: string) => {
+export const getOrdersByContactWaId = async (orgId: string, waId: string) => {
   return prisma.order.findMany({
     where: {
-      customer: { waId },
+      orgId,
+      contact: { waId },
     },
     include: {
       items: {
@@ -214,20 +211,20 @@ export const getOrdersByCustomerWaId = async (waId: string) => {
 // ─────────────────────────────────────────────
 
 /**
- * Adds an item to the customer's cart.
+ * Adds an item to the contact's cart.
  */
-export const addToCart = async (merchantId: string, customerWaId: string, productId: string, quantity: number = 1) => {
-  const customer = await findOrCreateCustomer(customerWaId);
+export const addToCart = async (orgId: string, customerWaId: string, productId: string, quantity: number = 1) => {
+  const contact = await findOrCreateContact(orgId, customerWaId);
   return prisma.cart.upsert({
-    where: { merchantId_customerId: { merchantId, customerId: customer.id } },
+    where: { orgId_contactId: { orgId, contactId: contact.id } },
     update: {
       items: {
         create: { productId, quantity }
       }
     },
     create: {
-      merchantId,
-      customerId: customer.id,
+      orgId,
+      contactId: contact.id,
       items: {
         create: { productId, quantity }
       }
@@ -237,14 +234,16 @@ export const addToCart = async (merchantId: string, customerWaId: string, produc
 };
 
 /**
- * Fetches the active cart for a customer.
+ * Fetches the active cart for a contact.
  */
-export const getCart = async (merchantId: string, customerWaId: string) => {
-  const customer = await prisma.customer.findUnique({ where: { waId: customerWaId } });
-  if (!customer) return null;
+export const getCart = async (orgId: string, customerWaId: string) => {
+  const contact = await prisma.contact.findUnique({
+    where: { orgId_waId: { orgId, waId: customerWaId } },
+  });
+  if (!contact) return null;
 
   return prisma.cart.findUnique({
-    where: { merchantId_customerId: { merchantId, customerId: customer.id } },
+    where: { orgId_contactId: { orgId, contactId: contact.id } },
     include: { items: { include: { product: true } } }
   });
 };
@@ -252,12 +251,12 @@ export const getCart = async (merchantId: string, customerWaId: string) => {
 /**
  * Creates a PENDING order from the current Cart and empties it.
  */
-export const createOrderFromCart = async (merchantId: string, customerWaId: string) => {
-  const cart = await getCart(merchantId, customerWaId);
-  if (!cart || cart.items.length === 0) return null;
+export const createOrderFromCart = async (orgId: string, customerWaId: string) => {
+  const cart = await getCart(orgId, customerWaId);
+  if (!cart || !cart.items || cart.items.length === 0) return null;
 
   let totalAmount = 0;
-  const orderItemsData = cart.items.map(item => {
+  const orderItemsData = cart.items.map((item: any) => {
     const itemTotal = Number(item.product.price) * item.quantity;
     totalAmount += itemTotal;
     return {
@@ -267,11 +266,10 @@ export const createOrderFromCart = async (merchantId: string, customerWaId: stri
     };
   });
 
-  // Create order
   const order = await prisma.order.create({
     data: {
-      merchantId,
-      customerId: cart.customerId,
+      orgId,
+      contactId: cart.contactId,
       status: "PENDING",
       totalAmount,
       items: {
@@ -280,7 +278,7 @@ export const createOrderFromCart = async (merchantId: string, customerWaId: stri
     },
     include: {
       items: { include: { product: true } },
-      customer: true
+      contact: true
     }
   });
 

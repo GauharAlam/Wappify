@@ -23,19 +23,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const merchant = await prisma.merchant.findFirst({
-      where: { userId: context.appUser.id },
-      include: { subscription: true },
-    });
+    const org = context.org;
 
-    if (!merchant) {
+    if (!org) {
       return NextResponse.json(
-        { success: false, message: "No merchant profile found." },
+        { success: false, message: "No organization found." },
         { status: 404 }
       );
     }
 
-    const sub = merchant.subscription;
+    const sub = await prisma.subscription.findUnique({
+      where: { orgId: org.id },
+    });
 
     const settings = await prisma.platformSettings.findUnique({ where: { id: "global" } });
     const adminUpiId = settings?.adminUpiId || null;

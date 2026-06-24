@@ -8,16 +8,16 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getRequiredMerchantId } from "@/lib/auth-utils";
+import { getRequiredOrgId } from "@/lib/auth-utils";
 
 // ─────────────────────────────────────────────
 // Data fetching (runs on the server)
 // ─────────────────────────────────────────────
 
 async function getDashboardStats() {
-  const merchantId = await getRequiredMerchantId();
+  const orgId = await getRequiredOrgId();
 
-  if (!merchantId) {
+  if (!orgId) {
     return {
       totalOrders: 0,
       totalRevenue: 0,
@@ -29,14 +29,14 @@ async function getDashboardStats() {
 
   const [allOrders, paidOrders, pendingCount, totalCustomers] =
     await Promise.all([
-      prisma.order.count({ where: { merchantId } }),
+      prisma.order.count({ where: { orgId } }),
       prisma.order.findMany({
-        where: { merchantId, status: "PAID" },
+        where: { orgId, status: "PAID" },
         select: { totalAmount: true },
       }),
-      prisma.order.count({ where: { merchantId, status: "PENDING" } }),
-      prisma.customer.count({
-        where: { orders: { some: { merchantId } } }
+      prisma.order.count({ where: { orgId, status: "PENDING" } }),
+      prisma.contact.count({
+        where: { orgId }
       }),
     ]);
 

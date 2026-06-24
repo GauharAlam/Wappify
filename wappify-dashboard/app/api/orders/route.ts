@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
 
     // ── Build where clause ────────────────────────────────────────────
-    const where: Record<string, unknown> = { merchantId };
+    const where: Record<string, unknown> = { orgId };
 
     if (status && status !== "ALL") where.status = status;
 
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
       prisma.order.findMany({
         where,
         include: {
-          customer: {
+          contact: {
             select: { id: true, name: true, waId: true },
           },
           items: {
@@ -80,9 +80,9 @@ export async function GET(req: NextRequest) {
       razorpayOrderId: order.razorpayOrderId,
       razorpayPaymentId: order.razorpayPaymentId,
       customer: {
-        id: order.customer.id,
-        name: order.customer.name,
-        waId: order.customer.waId,
+        id: order.contact.id,
+        name: order.contact.name,
+        waId: order.contact.waId,
       },
       items: order.items.map((item) => ({
         id: item.id,
@@ -133,9 +133,9 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 export async function PATCH(req: NextRequest) {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -173,7 +173,7 @@ export async function PATCH(req: NextRequest) {
 
     // ── Fetch current order ──────────────────────
     const order = await prisma.order.findFirst({
-      where: { id: orderId as string, merchantId },
+      where: { id: orderId as string, orgId },
       select: { id: true, status: true },
     });
 
@@ -201,7 +201,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: orderId as string },
       data: { status: status as "SHIPPED" | "DELIVERED" | "CANCELLED" },
       include: {
-        customer: { select: { name: true, waId: true } },
+        contact: { select: { name: true, waId: true } },
         items: {
           include: {
             product: { select: { name: true } },

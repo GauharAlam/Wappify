@@ -8,34 +8,37 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   try {
-
-    const merchant = await prisma.merchant.findUnique({
-      where: { id: merchantId },
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
       select: {
         id: true,
         name: true,
+        slug: true,
         whatsappNumber: true,
         storeCode: true,
         whatsappConnected: true,
         razorpayKeyId: true,
-        razorpayKeySecret: true, // Fetch to mask it
+        razorpayKeySecret: true,
         upiId: true,
         aiContext: true,
+        businessHoursSchedule: true,
+        timezone: true,
+        logoUrl: true,
         createdAt: true,
         updatedAt: true,
       },
     });
 
-    if (!merchant) {
+    if (!org) {
       return NextResponse.json(
-        { success: false, message: "Merchant not found. Run the backend server first to seed data." },
+        { success: false, message: "Organization not found." },
         { status: 404 }
       );
     }
@@ -45,10 +48,10 @@ export async function GET() {
       val ? `••••••••${val.slice(-4)}` : null;
 
     const data = {
-      ...merchant,
-      razorpayKeySecret: mask(merchant.razorpayKeySecret),
-      createdAt: merchant.createdAt.toISOString(),
-      updatedAt: merchant.updatedAt.toISOString(),
+      ...org,
+      razorpayKeySecret: mask(org.razorpayKeySecret),
+      createdAt: org.createdAt.toISOString(),
+      updatedAt: org.updatedAt.toISOString(),
     };
 
     return NextResponse.json({
@@ -75,10 +78,9 @@ export async function PATCH(req: NextRequest) {
   try {
 
     const body = await req.json();
-    const existingMerchant = context.merchant;
+    const existingOrg = context.org;
 
     // ── Whitelist only the fields that are safe to update ─────────────────
-    // Never allow merchantId, id, or createdAt to be overwritten via API.
     const {
       name,
       whatsappNumber,
@@ -86,6 +88,7 @@ export async function PATCH(req: NextRequest) {
       razorpayKeySecret,
       upiId,
       aiContext,
+      businessHoursSchedule,
     } = body;
 
     // ── Input length validation for sensitive fields ─────────────────────
@@ -116,15 +119,15 @@ export async function PATCH(req: NextRequest) {
 
     const nextName =
       (typeof name === "string" && name.trim()) ||
-      existingMerchant?.name ||
+      existingOrg?.name ||
       context.appUser.name ||
       "My Store";
     const nextWhatsappNumber =
       (typeof whatsappNumber === "string" && whatsappNumber.trim()) ||
-      existingMerchant?.whatsappNumber ||
+      existingOrg?.whatsappNumber ||
       null;
 
-    if (!existingMerchant && !nextWhatsappNumber) {
+    if (!existingOrg && !nextWhatsappNumber) {
       return NextResponse.json(
         { success: false, message: "WhatsApp number is required to create a store." },
         { status: 400 }
@@ -157,10 +160,14 @@ export async function PATCH(req: NextRequest) {
       updateData.aiContext = aiContext.trim() || null;
     }
 
+    if (businessHoursSchedule !== undefined) {
+      updateData.businessHoursSchedule = businessHoursSchedule;
+    }
+
     if (
       Object.keys(updateData).length === 2 &&
-      updateData.name === existingMerchant?.name &&
-      updateData.storeCode === existingMerchant?.storeCode
+      updateData.name === existingOrg?.name &&
+      updateData.storeCode === existingOrg?.storeCode
     ) {
       return NextResponse.json(
         { success: false, message: "No valid fields provided for update." },
@@ -168,9 +175,9 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const updated = existingMerchant
-      ? await prisma.merchant.update({
-          where: { id: existingMerchant.id },
+    const updated = existingOrg
+      ? await prisma.organization.update({
+          where: { id: existingOrg.id },
           data: updateData,
           select: {
             id: true,
@@ -180,42 +187,60 @@ export async function PATCH(req: NextRequest) {
             razorpayKeyId: true,
             upiId: true,
             aiContext: true,
+            businessHoursSchedule: true,
             updatedAt: true,
           },
         })
-      : await prisma.merchant.create({
-          data: {
-            userId: context.appUser.id,
-            name: nextName,
-            whatsappNumber: nextWhatsappNumber!,
-            storeCode: generateStoreCode(nextName),
-            razorpayKeyId:
-              typeof razorpayKeyId === "string"
-                ? razorpayKeyId.trim() || null
-                : null,
-            razorpayKeySecret:
-              typeof razorpayKeySecret === "string" &&
-              razorpayKeySecret.trim()
-                ? razorpayKeySecret.trim()
-                : null,
-            upiId: typeof upiId === "string" ? upiId.trim() || null : null,
-            aiContext:
-              typeof aiContext === "string" ? aiContext.trim() || null : null,
-          },
-          select: {
-            id: true,
-            name: true,
-            whatsappNumber: true,
-            storeCode: true,
-            razorpayKeyId: true,
-            upiId: true,
-            aiContext: true,
-            updatedAt: true,
-          },
+      : await prisma.$transaction(async (tx) => {
+          // Create the organization
+          const newOrg = await tx.organization.create({
+            data: {
+              name: nextName,
+              whatsappNumber: nextWhatsappNumber!,
+              storeCode: generateStoreCode(nextName),
+              slug: generateStoreCode(nextName).toLowerCase(),
+              razorpayKeyId:
+                typeof razorpayKeyId === "string"
+                  ? razorpayKeyId.trim() || null
+                  : null,
+              razorpayKeySecret:
+                typeof razorpayKeySecret === "string" &&
+                razorpayKeySecret.trim()
+                  ? razorpayKeySecret.trim()
+                  : null,
+              upiId: typeof upiId === "string" ? upiId.trim() || null : null,
+              aiContext:
+                typeof aiContext === "string" ? aiContext.trim() || null : null,
+            },
+            select: {
+              id: true,
+              name: true,
+              whatsappNumber: true,
+              storeCode: true,
+              razorpayKeyId: true,
+              upiId: true,
+              aiContext: true,
+              businessHoursSchedule: true,
+              updatedAt: true,
+            },
+          });
+
+          // Create the OrgMember record (OWNER)
+          await tx.orgMember.create({
+            data: {
+              orgId: newOrg.id,
+              userId: context.appUser.id,
+              email: context.appUser.email!,
+              role: "OWNER",
+              joinedAt: new Date(),
+            },
+          });
+
+          return newOrg;
         });
 
     console.log(
-      `[API /settings PATCH] Merchant ${updated.id} updated fields:`,
+      `[API /settings PATCH] Organization ${updated.id} updated fields:`,
       Object.keys(updateData),
     );
 

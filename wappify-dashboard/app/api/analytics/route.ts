@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,7 +20,7 @@ export async function GET() {
     
     const ordersInPeriod = await prisma.order.findMany({
       where: {
-        ...(merchantId ? { merchantId } : {}),
+        ...(orgId ? { orgId } : {}),
         createdAt: { gte: thirtyDaysAgo },
       },
       select: {
@@ -55,7 +55,7 @@ export async function GET() {
     // ── 2. Orders by Status ─────────────────────
     const statusCounts = await prisma.order.groupBy({
       by: ['status'],
-      where: merchantId ? { merchantId } : {},
+      where: orgId ? { orgId } : {},
       _count: { id: true },
     });
 
@@ -67,7 +67,7 @@ export async function GET() {
     // ── 3. Top Products ────────────────────────
     const topProductsRaw = await prisma.orderItem.groupBy({
       by: ['productId'],
-      where: merchantId ? { order: { merchantId } } : {},
+      where: orgId ? { order: { orgId } } : {},
       _sum: { quantity: true },
       orderBy: { _sum: { quantity: 'desc' } },
       take: 5,
@@ -95,17 +95,17 @@ export async function GET() {
     const [totalRevenueResult, totalCustomers, paidOrdersCount] = await Promise.all([
       prisma.order.aggregate({
         where: {
-          ...(merchantId ? { merchantId } : {}),
+          ...(orgId ? { orgId } : {}),
           status: { in: ["PAID", "SHIPPED", "DELIVERED"] },
         },
         _sum: { totalAmount: true },
       }),
-      prisma.customer.count({
-        where: { orders: { some: { merchantId } } },
+      prisma.contact.count({
+        where: { orgId },
       }),
       prisma.order.count({
         where: {
-          ...(merchantId ? { merchantId } : {}),
+          ...(orgId ? { orgId } : {}),
           status: "PAID",
         },
       }),

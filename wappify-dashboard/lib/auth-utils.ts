@@ -1,7 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { Prisma, type Merchant, type User } from "@prisma/client";
+import { Prisma, type Organization, type User, type OrgMember, type OrgRole } from "@prisma/client";
 
 const CLERK_PROVIDER = "clerk";
 
@@ -167,19 +167,33 @@ const syncClerkUserIntoApp = async (): Promise<User | null> => {
   });
 };
 
-export async function getAuthContext(): Promise<{
+// ─────────────────────────────────────────────
+// Auth Context: returns the app user + org + membership
+// ─────────────────────────────────────────────
+
+export type AuthContext = {
   appUser: User;
-  merchant: Merchant | null;
-} | null> {
+  org: Organization | null;
+  membership: OrgMember | null;
+};
+
+export async function getAuthContext(): Promise<AuthContext | null> {
   const appUser = await syncClerkUserIntoApp();
 
   if (!appUser) return null;
 
-  const merchant = await prisma.merchant.findFirst({
-    where: { userId: appUser.id },
+  // Find the user's active membership (first org they belong to)
+  const membership = await prisma.orgMember.findFirst({
+    where: { userId: appUser.id, isActive: true },
+    include: { org: true },
+    orderBy: { createdAt: "asc" },
   });
 
-  return { appUser, merchant };
+  return {
+    appUser,
+    org: membership?.org ?? null,
+    membership: membership ?? null,
+  };
 }
 
 export async function getRequiredAppUser() {
@@ -194,7 +208,8 @@ export async function getRequiredAppUser() {
 
 export async function getRequiredDashboardContext(): Promise<{
   appUser: User;
-  merchant: Merchant;
+  org: Organization;
+  membership: OrgMember;
 }> {
   const context = await getAuthContext();
 
@@ -202,16 +217,16 @@ export async function getRequiredDashboardContext(): Promise<{
     redirect("/login");
   }
 
-  const { merchant } = context;
-  const hasPaymentMethod = merchant?.razorpayKeyId || merchant?.upiId;
+  const { org, membership } = context;
 
-  if (!merchant || !merchant.whatsappNumber || !hasPaymentMethod) {
+  if (!org || !org.onboardingCompleted || !membership) {
     redirect("/onboarding");
   }
 
   return {
     appUser: context.appUser,
-    merchant,
+    org,
+    membership,
   };
 }
 
@@ -226,19 +241,52 @@ export async function getRequiredAdminUser() {
 }
 
 /**
- * Gets the current authenticated merchant from the session.
+ * Gets the current authenticated organization from the session.
  * If not authenticated, redirects to login.
- * If no merchant found, redirects to the merchant setup page?
+ * If no org found, redirects to onboarding.
  */
-export async function getRequiredMerchant(): Promise<Merchant> {
-  const { merchant } = await getRequiredDashboardContext();
-  return merchant;
+export async function getRequiredOrg(): Promise<Organization> {
+  const { org } = await getRequiredDashboardContext();
+  return org;
 }
 
 /**
- * Simplified helper for server components that just need the ID.
+ * Gets the current authenticated organization ID.
  */
-export async function getRequiredMerchantId() {
-  const merchant = await getRequiredMerchant();
-  return merchant?.id || null;
+export async function getRequiredOrgId(): Promise<string> {
+  const org = await getRequiredOrg();
+  return org.id;
+}
+
+/**
+ * RBAC helper: ensures the current user has one of the required roles.
+ * Redirects to dashboard if they don't.
+ */
+export async function requireRole(...roles: OrgRole[]): Promise<{
+  appUser: User;
+  org: Organization;
+  membership: OrgMember;
+}> {
+  const context = await getRequiredDashboardContext();
+  
+  if (!roles.includes(context.membership.role)) {
+    redirect("/dashboard");
+  }
+
+  return context;
+}
+
+// ─────────────────────────────────────────────
+// Backward Compatibility Aliases
+// ─────────────────────────────────────────────
+
+/** @deprecated Use getRequiredOrg() instead */
+export async function getRequiredMerchant(): Promise<Organization> {
+  return getRequiredOrg();
+}
+
+/** @deprecated Use getRequiredOrgId() instead */
+export async function getRequiredMerchantId(): Promise<string | null> {
+  const org = await getRequiredOrg();
+  return org?.id || null;
 }

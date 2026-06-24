@@ -15,9 +15,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -27,7 +27,7 @@ export async function PATCH(
     // Verify product exists and belongs to merchant
     const existing = await prisma.product.findUnique({
       where: { id },
-      select: { id: true, merchantId: true },
+      select: { id: true, orgId: true },
     });
 
     if (!existing) {
@@ -37,7 +37,7 @@ export async function PATCH(
       );
     }
 
-    if (merchantId && existing.merchantId !== merchantId) {
+    if (orgId && existing.orgId !== orgId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized." },
         { status: 403 },
@@ -118,7 +118,7 @@ export async function PATCH(
       stock: updated.stock,
       isActive: updated.isActive,
       imageUrl: updated.imageUrl,
-      merchantId: updated.merchantId,
+      orgId: updated.orgId,
       createdAt: updated.createdAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     });
@@ -144,9 +144,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -156,7 +156,7 @@ export async function DELETE(
     // Verify product exists and belongs to merchant
     const existing = await prisma.product.findUnique({
       where: { id },
-      select: { id: true, merchantId: true, name: true },
+      select: { id: true, orgId: true, name: true },
     });
 
     if (!existing) {
@@ -166,7 +166,7 @@ export async function DELETE(
       );
     }
 
-    if (merchantId && existing.merchantId !== merchantId) {
+    if (orgId && existing.orgId !== orgId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized." },
         { status: 403 },

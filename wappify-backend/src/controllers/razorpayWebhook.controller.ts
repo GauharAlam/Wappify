@@ -136,8 +136,8 @@ export const receiveRazorpayWebhook = async (
         );
 
         // Build order summary for WhatsApp confirmation
-        const customerWaId = updatedOrder.customer.waId;
-        const customerName = updatedOrder.customer.name || "";
+        const contactWaId = updatedOrder.contact.waId;
+        const contactName = updatedOrder.contact.name || "";
 
         const itemSummary = updatedOrder.items
           .map(
@@ -151,7 +151,7 @@ export const receiveRazorpayWebhook = async (
         const confirmationMessage = [
           `✅ *Payment Confirmed!* 🎉`,
           ``,
-          `Bahut shukriya ${customerName}! Aapka payment successfully receive ho gaya hai.`,
+          `Bahut shukriya ${contactName}! Aapka payment successfully receive ho gaya hai.`,
           ``,
           `🧾 *Order Details:*`,
           `Order ID : #${shortOrderId}`,
@@ -167,10 +167,10 @@ export const receiveRazorpayWebhook = async (
           `Koi sawaal ho toh yahan message karein — hum hamesha available hain. 😊`,
         ].join("\n");
 
-        await sendTextMessage(updatedOrder.merchantId, customerWaId, confirmationMessage);
+        await sendTextMessage(updatedOrder.orgId, contactWaId, confirmationMessage);
 
         console.log(
-          `[RAZORPAY WEBHOOK] ✅ Confirmation message sent to customer: ${customerWaId}`
+          `[RAZORPAY WEBHOOK] ✅ Confirmation message sent to contact: ${contactWaId}`
         );
         break;
       }
@@ -195,7 +195,7 @@ export const receiveRazorpayWebhook = async (
         console.warn(
           `[RAZORPAY WEBHOOK] Payment ${failedPaymentId} failed: ${errorDescription}`
         );
-        // TODO: Notify customer of failure via WhatsApp in a future step
+        // TODO: Notify contact of failure via WhatsApp in a future step
         break;
       }
 

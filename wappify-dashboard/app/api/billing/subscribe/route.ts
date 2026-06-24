@@ -39,30 +39,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Find merchant ───────────────────────
-    const merchant = await prisma.merchant.findFirst({
-      where: { userId: context.appUser.id },
-      include: { subscription: true },
-    });
+    // ── Find organization ────────────────────
+    const org = context.org;
 
-    if (!merchant) {
+    if (!org) {
       return NextResponse.json(
-        { success: false, message: "No merchant profile found." },
+        { success: false, message: "No organization found." },
         { status: 404 }
       );
     }
 
+    // Load subscription
+    const subscription = await prisma.subscription.findUnique({
+      where: { orgId: org.id },
+    });
+
     // ── Check for existing active subscription ──
     if (
-      merchant.subscription &&
+      subscription &&
       ["ACTIVE", "AUTHENTICATED", "CREATED"].includes(
-        merchant.subscription.status
+        subscription.status
       )
     ) {
       return NextResponse.json(
         {
           success: false,
-          message: `You already have an ${merchant.subscription.status.toLowerCase()} subscription on the ${merchant.subscription.planTier} plan.`,
+          message: `You already have an ${subscription.status.toLowerCase()} subscription on the ${subscription.planTier} plan.`,
         },
         { status: 409 }
       );
@@ -72,15 +74,15 @@ export async function POST(req: NextRequest) {
     const razorpaySub = await createSubscription({
       planTier: planTier as "STARTER" | "PRO",
       merchantEmail: context.appUser.email || "",
-      merchantName: merchant.name,
-      merchantId: merchant.id,
+      merchantName: org.name,
+      merchantId: org.id,
     });
 
     // ── Upsert subscription in DB ───────────
-    const subscription = await prisma.subscription.upsert({
-      where: { merchantId: merchant.id },
+    const newSubscription = await prisma.subscription.upsert({
+      where: { orgId: org.id },
       create: {
-        merchantId: merchant.id,
+        orgId: org.id,
         planTier: planTier as "STARTER" | "PRO",
         status: "CREATED",
         razorpaySubscriptionId: razorpaySub.id,
@@ -98,12 +100,12 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(
-      `[BILLING API] ✅ Subscription created for merchant ${merchant.id} → ${razorpaySub.id}`
+      `[BILLING API] ✅ Subscription created for org ${org.id} → ${razorpaySub.id}`
     );
 
     return NextResponse.json({
       success: true,
-      subscriptionId: subscription.id,
+      subscriptionId: newSubscription.id,
       razorpaySubscriptionId: razorpaySub.id,
       checkoutUrl: razorpaySub.short_url,
       planTier,

@@ -13,15 +13,15 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const products = await prisma.product.findMany({
-      where: { merchantId },
+      where: { orgId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -36,7 +36,7 @@ export async function GET() {
       stock: p.stock,
       isActive: p.isActive,
       imageUrl: p.imageUrl,
-      merchantId: p.merchantId,
+      orgId: p.orgId,
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }));
@@ -61,9 +61,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const context = await getAuthContext();
-  const merchantId = context?.merchant?.id;
+  const orgId = context?.org?.id;
 
-  if (!merchantId) {
+  if (!orgId) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     // ── Create product ────────────────────────
     const product = await prisma.product.create({
       data: {
-        merchantId,
+        orgId,
         name: (name as string).trim(),
         description:
           typeof description === "string" && description.trim()
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         stock: product.stock,
         isActive: product.isActive,
         imageUrl: product.imageUrl,
-        merchantId: product.merchantId,
+        orgId: product.orgId,
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),
       },

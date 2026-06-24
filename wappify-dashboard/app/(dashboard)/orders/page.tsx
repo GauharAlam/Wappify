@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import OrdersTable from "@/components/orders/OrdersTable";
 import type { Metadata } from "next";
 import { ShoppingCart } from "lucide-react";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import type { SerializedOrder } from "@/components/orders/OrdersTable";
 
@@ -14,11 +14,11 @@ export const metadata: Metadata = {
 // Data fetcher — direct Prisma (Server Component)
 // ─────────────────────────────────────────────
 
-async function getOrders(merchantId: string): Promise<SerializedOrder[]> {
+async function getOrders(orgId: string): Promise<SerializedOrder[]> {
   const orders = await prisma.order.findMany({
-    where: { merchantId },
+    where: { orgId },
     include: {
-      customer: true,
+      contact: true,
       items: {
         include: {
           product: {
@@ -40,8 +40,8 @@ async function getOrders(merchantId: string): Promise<SerializedOrder[]> {
     razorpayOrderId: order.razorpayOrderId,
     razorpayPaymentId: order.razorpayPaymentId,
     customer: {
-      name: order.customer.name,
-      waId: order.customer.waId,
+      name: order.contact.name,
+      waId: order.contact.waId,
     },
     items: order.items.map((item) => ({
       productName: item.product.name,
@@ -56,9 +56,9 @@ async function getOrders(merchantId: string): Promise<SerializedOrder[]> {
 // ─────────────────────────────────────────────
 
 export default async function OrdersPage() {
-  const merchant = await getRequiredMerchant();
+  const org = await getRequiredOrg();
 
-  const orders = await getOrders(merchant.id);
+  const orders = await getOrders(org.id);
 
   return (
     <div className="space-y-6">

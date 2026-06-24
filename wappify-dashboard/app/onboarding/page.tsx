@@ -1,508 +1,65 @@
-"use client";
-
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  MessageSquare,
-  CreditCard,
-  Bot,
-  Store,
-  ArrowRight,
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  Lock,
-  Zap,
-  Copy,
-  ExternalLink,
-  Smartphone,
-} from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { ArrowRight, Sparkles } from "lucide-react";
+import { TemplateCard } from "@/components/onboarding/TemplateCard";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { generateStoreCode } from "@/lib/store-code";
+import { getAuthContext } from "@/lib/auth-utils";
+import { ONBOARDING_TEMPLATES } from "@/lib/templates";
 
-// ─────────────────────────────────────────────
-// Types & Constants
-// ─────────────────────────────────────────────
+export const metadata = {
+  title: "Onboarding — Wappify",
+};
 
-type Step = "business" | "whatsapp" | "payments" | "ai" | "success";
+export default async function OnboardingPage() {
+  const context = await getAuthContext();
 
-const STEPS: Step[] = ["business", "whatsapp", "payments", "ai", "success"];
+  if (!context) {
+    redirect("/login");
+  }
 
-interface OnboardingData {
-  name: string;
-  whatsappNumber: string;
-  upiId: string;
-  razorpayKeyId: string;
-  razorpayKeySecret: string;
-  aiContext: string;
-}
-
-// ─────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────
-
-function StepIndicator({ currentStep }: { currentStep: number }) {
-  return (
-    <div className="flex items-center justify-center gap-3 mb-8">
-      {STEPS.slice(0, -1).map((_, i) => (
-        <React.Fragment key={i}>
-          <div
-            className={cn(
-              "h-2 w-2 rounded-full transition-all duration-500",
-              i <= currentStep ? "bg-primary w-6" : "bg-muted"
-            )}
-          />
-          {i < STEPS.length - 2 && (
-            <div className="h-0.5 w-4 bg-muted" />
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const el = document.createElement("textarea");
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-    }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // If they are fully onboarded, send to inbox
+  if (context.org?.onboardingCompleted) {
+    redirect("/inbox");
+  }
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1 text-xs font-medium text-green-700 hover:text-green-900 transition-colors"
-    >
-      {copied ? (
-        <>
-          <CheckCircle2 className="h-3.5 w-3.5" />
-          Copied!
-        </>
-      ) : (
-        <>
-          <Copy className="h-3.5 w-3.5" />
-          Copy Link
-        </>
-      )}
-    </button>
-  );
-}
+    <main className="min-h-screen bg-neutral-50/50">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8">
+        <div className="mb-12 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-3 font-bold tracking-tight text-neutral-900 text-xl">
+            <img src="/logo.svg" alt="Wappify" className="h-8 w-8 rounded-lg" />
+            Wappify
+          </Link>
+          <Button asChild variant="ghost" className="text-neutral-500 hover:text-neutral-900">
+            {/* We provide a way to skip using the first template as generic */}
+            <Link href="/inbox">
+              Skip for now
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
 
-// ─────────────────────────────────────────────
-// Main Page Component
-// ─────────────────────────────────────────────
-
-export default function OnboardingPage() {
-  const router = useRouter();
-  const [currentStepIdx, setCurrentStepIdx] = React.useState(0);
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [data, setData] = React.useState<OnboardingData>({
-    name: "",
-    whatsappNumber: "",
-    upiId: "",
-    razorpayKeyId: "",
-    razorpayKeySecret: "",
-    aiContext: "",
-  });
-
-  const currentStep = STEPS[currentStepIdx];
-
-  // Preview store code
-  const storeCode = React.useMemo(() => generateStoreCode(data.name), [data.name]);
-  const previewLink = data.whatsappNumber
-    ? `https://wa.me/${data.whatsappNumber.replace(/\D/g, "")}?text=STORE-${storeCode}`
-    : "";
-
-  const handleNext = async () => {
-    if (currentStepIdx < STEPS.length - 1) {
-      if (currentStep === "ai") {
-        await finalizeOnboarding();
-      } else {
-        setCurrentStepIdx((prev) => prev + 1);
-      }
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStepIdx > 0) {
-      setCurrentStepIdx((prev) => prev - 1);
-    }
-  };
-
-  const finalizeOnboarding = async () => {
-    setIsSaving(true);
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to save settings");
-      }
-
-      setCurrentStepIdx(STEPS.length - 1); // Go to success step
-    } catch (err) {
-      console.error(err);
-      const message = err instanceof Error ? err.message : "Error saving your profile. Please try again.";
-      alert(`⚠️ ${message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-2xl">
-        
-        <AnimatePresence mode="wait">
-          {currentStep !== "success" && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="text-center mb-10"
-            >
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-4">
-                <Zap className="h-6 w-6 font-bold" />
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-neutral-900 mb-2">
-                Let&apos;s set up your Store
-              </h1>
-              <p className="text-neutral-500 max-w-md mx-auto">
-                Complete these 4 simple steps to launch your WhatsApp Commerce platform after secure Clerk sign up.
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <Card className="shadow-2xl shadow-neutral-200/50 border-neutral-100 overflow-hidden">
-          <CardContent className="p-0">
-            {currentStep !== "success" && (
-              <div className="px-8 pt-8">
-                <StepIndicator currentStep={currentStepIdx} />
-              </div>
-            )}
-
-            <div className="p-8">
-              <AnimatePresence mode="wait">
-                {currentStep === "business" && (
-                  <motion.div
-                    key="business"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-semibold flex items-center gap-2">
-                        <Store className="h-5 w-5 text-neutral-400" />
-                        Business Profile
-                      </h2>
-                      <p className="text-sm text-neutral-500">How should your store appear to customers?</p>
-                    </div>
-
-                    <div className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Store Name</Label>
-                        <Input
-                          id="name"
-                          placeholder="e.g. StyleHouse India"
-                          value={data.name}
-                          onChange={(e) => setData({ ...data, name: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {currentStep === "whatsapp" && (
-                  <motion.div
-                    key="whatsapp"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-semibold flex items-center gap-2">
-                        <MessageSquare className="h-5 w-5 text-green-500" />
-                        Connect WhatsApp
-                      </h2>
-                      <p className="text-sm text-neutral-500">Enter the number your customers already message you on.</p>
-                    </div>
-
-                    <div className="space-y-4 pt-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="wa">Your WhatsApp Business Number</Label>
-                        <Input
-                          id="wa"
-                          placeholder="919876543210"
-                          value={data.whatsappNumber}
-                          onChange={(e) => setData({ ...data, whatsappNumber: e.target.value })}
-                        />
-                        <p className="text-xs text-neutral-400">
-                          Format: country code + number (e.g. 91 for India + your 10-digit number)
-                        </p>
-                      </div>
-
-                      {/* No API keys badge */}
-                      <div className="flex items-center gap-3 rounded-lg border-2 border-green-300 bg-green-50 p-4">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
-                          <Smartphone className="h-5 w-5 text-green-700" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-green-900">No API keys needed! ✨</p>
-                          <p className="text-xs text-green-700">
-                            Powered by Wappify&apos;s platform. Just enter your number and you&apos;re all set.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Live preview of shareable link */}
-                      {previewLink && data.name && (
-                        <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-2">
-                          <p className="text-xs font-medium text-neutral-500">📱 Preview: Your Store Link</p>
-                          <div className="flex items-center gap-2 rounded-md bg-neutral-50 px-3 py-2">
-                            <code className="flex-1 text-xs font-mono text-neutral-700 truncate">
-                              {previewLink}
-                            </code>
-                            <CopyButton text={previewLink} />
-                          </div>
-                          <p className="text-xs text-neutral-400">
-                            Share this link with customers — they&apos;ll be auto-connected to your store.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-
-                {currentStep === "payments" && (
-                  <motion.div
-                    key="payments"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-semibold flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-blue-500" />
-                        Payment Setup
-                      </h2>
-                      <p className="text-sm text-neutral-500">Choose how you want to accept payments from customers.</p>
-                    </div>
-
-                    {/* UPI Direct — Recommended for starting out */}
-                    <div className="rounded-lg border-2 border-green-300 bg-green-50/50 p-4 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-green-100">
-                          <span className="text-sm font-bold">₹</span>
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-green-900">UPI Direct — Zero Fees ✨</p>
-                          <p className="text-xs text-green-700">Payments go straight to your UPI. No middleman, no charges.</p>
-                        </div>
-                        <span className="text-xs font-bold text-green-700 bg-green-200 px-2 py-0.5 rounded-full">RECOMMENDED</span>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="upiId">Your UPI ID</Label>
-                        <Input
-                          id="upiId"
-                          placeholder="yourname@upi or business@paytm"
-                          value={data.upiId}
-                          onChange={(e) => setData({ ...data, upiId: e.target.value })}
-                          className="font-mono text-sm bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-neutral-50 px-2 text-neutral-400">
-                          or add Razorpay later
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Razorpay — Optional upgrade */}
-                    <div className="rounded-lg border border-neutral-200 bg-white p-4 space-y-3 opacity-80 hover:opacity-100 transition-opacity">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-neutral-400" />
-                        <p className="text-sm font-medium text-neutral-600">Razorpay Gateway (Optional)</p>
-                        <span className="text-xs text-neutral-400 bg-neutral-100 px-2 py-0.5 rounded-full">Skip for now</span>
-                      </div>
-                      <div className="space-y-3 pt-1">
-                        <div className="space-y-2">
-                          <Label htmlFor="key" className="text-xs text-neutral-500">Razorpay Key ID</Label>
-                          <Input
-                            id="key"
-                            placeholder="rzp_live_..."
-                            value={data.razorpayKeyId}
-                            onChange={(e) => setData({ ...data, razorpayKeyId: e.target.value })}
-                            className="text-sm"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="secret" className="text-xs text-neutral-500">Razorpay Key Secret</Label>
-                          <Input
-                            id="secret"
-                            type="password"
-                            placeholder="Keep it secret"
-                            value={data.razorpayKeySecret}
-                            onChange={(e) => setData({ ...data, razorpayKeySecret: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {currentStep === "ai" && (
-                  <motion.div
-                    key="ai"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-6"
-                  >
-                    <div className="space-y-1">
-                      <h2 className="text-xl font-semibold flex items-center gap-2">
-                        <Bot className="h-5 w-5 text-purple-500" />
-                        AI Persona
-                      </h2>
-                      <p className="text-sm text-neutral-500">Teach the bot how to talk to your customers.</p>
-                    </div>
-
-                    <div className="space-y-4 pt-4">
-                      <Label htmlFor="ai">Store Context & Policies</Label>
-                      <Textarea
-                        id="ai"
-                        rows={6}
-                        placeholder="e.g. Be friendly, we offer free shipping above ₹999, and handle returns within 7 days."
-                        value={data.aiContext}
-                        onChange={(e) => setData({ ...data, aiContext: e.target.value })}
-                        className="resize-none"
-                      />
-                    </div>
-                  </motion.div>
-                )}
-
-                {currentStep === "success" && (
-                  <motion.div
-                    key="success"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center py-10 space-y-6"
-                  >
-                    <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600 mb-2">
-                      <CheckCircle2 className="h-10 w-10" />
-                    </div>
-                    <div className="space-y-2">
-                      <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
-                        You&apos;re all set!
-                      </h2>
-                      <p className="text-neutral-500">
-                        Your WhatsApp Store is live and your AI bot is ready to serve customers.
-                      </p>
-                    </div>
-
-                    {/* Show the shareable link on success */}
-                    {previewLink && (
-                      <div className="rounded-lg border-2 border-green-300 bg-green-50 p-4 space-y-2 text-left max-w-md mx-auto">
-                        <p className="text-sm font-semibold text-green-900">📱 Your Store Link</p>
-                        <div className="flex items-center gap-2 rounded-md bg-white border border-green-200 px-3 py-2">
-                          <code className="flex-1 text-xs font-mono text-green-800 truncate">
-                            {previewLink}
-                          </code>
-                          <CopyButton text={previewLink} />
-                        </div>
-                        <p className="text-xs text-green-600">
-                          Share this link on your Instagram, website, or business cards!
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="pt-6">
-                      <Button
-                        size="lg"
-                        className="w-full text-lg h-14"
-                        onClick={() => router.push("/dashboard")}
-                      >
-                        Enter Dashboard
-                        <ArrowRight className="ml-2 h-5 w-5" />
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {currentStep !== "success" && (
-                <div className="flex items-center justify-between mt-12 pt-6 border-t border-neutral-100">
-                  <Button
-                    variant="ghost"
-                    onClick={handleBack}
-                    disabled={currentStepIdx === 0 || isSaving}
-                    className="text-neutral-500"
-                  >
-                    <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
-                  </Button>
-                  <Button
-                    onClick={handleNext}
-                    disabled={isSaving}
-                    className="px-8"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Launching...
-                      </>
-                    ) : (
-                      <>
-                        {currentStep === "ai" ? "Launch Store" : "Continue"}
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {currentStep !== "success" && (
-          <div className="mt-8 flex items-center justify-center gap-2 text-neutral-400 text-sm">
-            <Lock className="h-3.5 w-3.5" />
-            Your data is securely encrypted.
+        <section className="mx-auto w-full max-w-3xl py-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <Sparkles className="h-7 w-7" />
           </div>
-        )}
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Step 1 of 2</p>
+          <h1 className="text-4xl font-extrabold tracking-tight text-neutral-900 sm:text-5xl">
+            How will you use Wappify?
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-neutral-500">
+            Choose a use case below. We&apos;ll automatically set up your workflows, tags, and AI personality. <strong className="text-neutral-900 font-medium">You can customize everything later.</strong>
+          </p>
+        </section>
+
+        <section className="grid gap-6 pb-20 sm:grid-cols-2 lg:grid-cols-3 mt-8 animate-in fade-in slide-in-from-bottom-8 duration-700 delay-150 fill-mode-both">
+          {ONBOARDING_TEMPLATES.map((template) => (
+            <Link key={template.id} href={`/onboarding/${template.id}`} className="block h-full">
+              <TemplateCard template={template} />
+            </Link>
+          ))}
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

@@ -23,20 +23,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Find merchant + subscription ────────
-    const merchant = await prisma.merchant.findFirst({
-      where: { userId: context.appUser.id },
-      include: { subscription: true },
+    // ── Find org + subscription ────────
+    const org = context.org;
+
+    if (!org) {
+      return NextResponse.json(
+        { success: false, message: "No organization found." },
+        { status: 404 }
+      );
+    }
+
+    const sub = await prisma.subscription.findUnique({
+      where: { orgId: org.id },
     });
 
-    if (!merchant?.subscription) {
+    if (!sub) {
       return NextResponse.json(
         { success: false, message: "No active subscription found." },
         { status: 404 }
       );
     }
-
-    const sub = merchant.subscription;
 
     if (!["ACTIVE", "AUTHENTICATED", "PENDING"].includes(sub.status)) {
       return NextResponse.json(
@@ -71,7 +77,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(
-      `[BILLING API] ✅ Subscription cancelled for merchant ${merchant.id}`
+      `[BILLING API] ✅ Subscription cancelled for org ${org.id}`
     );
 
     return NextResponse.json({

@@ -19,12 +19,12 @@ export interface CatalogProduct {
 // ─────────────────────────────────────────────
 
 export const sendTextMessage = async (
-  merchantId: string,
+  orgId: string,
   to: string,
   message: string,
 ): Promise<void> => {
-  if (!merchantId) {
-    throw new Error("merchantId is required to send messages");
+  if (!orgId) {
+    throw new Error("orgId is required to send messages");
   }
 
   console.log(`[WA SERVICE] Sending text message to: ${to}`);
@@ -35,8 +35,8 @@ export const sendTextMessage = async (
     console.log(`[WA SERVICE] Message sent successfully to ${to}`);
 
     // Track usage in the database asynchronously
-    prisma.merchant.update({
-      where: { id: merchantId },
+    prisma.organization.update({
+      where: { id: orgId },
       data: { messagesSent: { increment: 1 } },
     }).catch((err: any) => {
       console.error("[WA METRICS] Failed to track message count:", err?.message || err);
@@ -56,7 +56,7 @@ export const sendTextMessage = async (
 // ─────────────────────────────────────────────
 
 export const sendGreetingMessage = async (
-  merchantId: string,
+  orgId: string,
   to: string,
   customerName?: string,
   merchantName: string = "Our Store",
@@ -71,7 +71,7 @@ export const sendGreetingMessage = async (
     `❓ *3* — Help & FAQ\n\n` +
     `Ya seedha apna sawaal type karein, main Hinglish mein jawab dunga! 😊`;
 
-  await sendTextMessage(merchantId, to, message);
+  await sendTextMessage(orgId, to, message);
 };
 
 // ─────────────────────────────────────────────
@@ -79,14 +79,14 @@ export const sendGreetingMessage = async (
 // ─────────────────────────────────────────────
 
 export const sendCatalogMessage = async (
-  merchantId: string,
+  orgId: string,
   to: string,
   products: CatalogProduct[],
   merchantName: string = "Our Store",
 ): Promise<void> => {
   if (products.length === 0) {
     await sendTextMessage(
-      merchantId,
+      orgId,
       to,
       "Abhi koi product available nahi hai. Thodi der baad try karein! 🙏",
     );
@@ -111,14 +111,14 @@ export const sendCatalogMessage = async (
     `➡️ *"buy [product name]"* likhein order karne ke liye\n` +
     `➡️ Koi sawaal ho toh seedha poochein!`;
 
-  await sendTextMessage(merchantId, to, message);
+  await sendTextMessage(orgId, to, message);
 };
 
 // ─────────────────────────────────────────────
 // Order init message
 // ─────────────────────────────────────────────
 
-export const sendOrderInitMessage = async (merchantId: string, to: string): Promise<void> => {
+export const sendOrderInitMessage = async (orgId: string, to: string): Promise<void> => {
   const message =
     `🛒 *Order karna chahte hain? Bilkul sahi choice!*\n\n` +
     `Filhaal aap humse directly order kar sakte hain:\n\n` +
@@ -127,14 +127,14 @@ export const sendOrderInitMessage = async (merchantId: string, to: string): Prom
     `3️⃣ Hum aapko payment link bhejenge!\n\n` +
     `Koi help chahiye? Seedha poochein 😊`;
 
-  await sendTextMessage(merchantId, to, message);
+  await sendTextMessage(orgId, to, message);
 };
 
 // ─────────────────────────────────────────────
 // Fallback message
 // ─────────────────────────────────────────────
 
-export const sendFallbackMessage = async (merchantId: string, to: string): Promise<void> => {
+export const sendFallbackMessage = async (orgId: string, to: string): Promise<void> => {
   const message =
     `Oops! Mujhe samajh nahi aaya 😅\n\n` +
     `Aap neeche se ek option choose kar sakte hain:\n\n` +
@@ -143,7 +143,7 @@ export const sendFallbackMessage = async (merchantId: string, to: string): Promi
     `❓ *3* — Help & FAQ\n\n` +
     `Ya apna sawaal dobara clearly type karein, main zaroor help karunga!`;
 
-  await sendTextMessage(merchantId, to, message);
+  await sendTextMessage(orgId, to, message);
 };
 
 // ─────────────────────────────────────────────
@@ -151,7 +151,7 @@ export const sendFallbackMessage = async (merchantId: string, to: string): Promi
 // ─────────────────────────────────────────────
 
 export const sendMediaAcknowledgement = async (
-  merchantId: string,
+  orgId: string,
   to: string,
   mediaType: string,
 ): Promise<void> => {
@@ -171,5 +171,5 @@ export const sendMediaAcknowledgement = async (
     `Apna sawaal text mein type karein aur hum turant help karenge! 😊\n\n` +
     `🛍️ *1* type karein catalog dekhne ke liye`;
 
-  await sendTextMessage(merchantId, to, message);
+  await sendTextMessage(orgId, to, message);
 };

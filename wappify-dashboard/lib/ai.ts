@@ -4,14 +4,14 @@ import { prisma } from "./prisma";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 /**
- * Generates a merchant-specific AI response using Gemini Pro.
- * Injects the merchant's brand context and product catalog into the prompt.
+ * Generates an org-specific AI response using Gemini Pro.
+ * Injects the organization's brand context and product catalog into the prompt.
  */
-export async function generateAiResponse(merchantId: string, userMessage: string) {
+export async function generateAiResponse(orgId: string, userMessage: string) {
   try {
-    // ── 1. Fetch Merchant Data ────────────────
-    const merchant = await prisma.merchant.findUnique({
-      where: { id: merchantId },
+    // ── 1. Fetch Organization Data ────────────────
+    const org = await prisma.organization.findUnique({
+      where: { id: orgId },
       include: {
         products: {
           where: { isActive: true },
@@ -20,20 +20,20 @@ export async function generateAiResponse(merchantId: string, userMessage: string
       },
     });
 
-    if (!merchant) throw new Error("Merchant not found");
+    if (!org) throw new Error("Organization not found");
 
     // ── 2. Construct Knowledge Base ───────────
-    const productsList = merchant.products
+    const productsList = org.products
       .map((p) => `- ${p.name}: ₹${Number(p.price)} (${p.description || "No description"}) [Stock: ${p.stock}]`)
       .join("\n");
 
     const systemPrompt = `
-      You are "${merchant.name}'s" helpful WhatsApp AI assistant. 
+      You are "${org.name}'s" helpful WhatsApp AI assistant. 
       Your goal is to help customers find products, answer questions about the store, and provide accurate information.
 
       --- MERCHANT KNOWLEDGE BASE ---
       STORE PROFILE:
-      ${merchant.aiContext || "A professional retail store."}
+      ${org.aiContext || "A professional retail store."}
 
       AVAILABLE PRODUCTS:
       ${productsList || "No products currently listed."}

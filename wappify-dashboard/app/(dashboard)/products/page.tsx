@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Package } from "lucide-react";
 import type { Metadata } from "next";
 import ProductsGrid from "@/components/products/ProductsGrid";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -30,9 +30,9 @@ export type SerializedProduct = {
 // Data fetcher — direct Prisma (Server Component)
 // ─────────────────────────────────────────────
 
-async function getProducts(merchantId: string): Promise<SerializedProduct[]> {
+async function getProducts(orgId: string): Promise<SerializedProduct[]> {
   const products = await prisma.product.findMany({
-    where: { merchantId },
+    where: { orgId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -56,9 +56,9 @@ async function getProducts(merchantId: string): Promise<SerializedProduct[]> {
 // ─────────────────────────────────────────────
 
 export default async function ProductsPage() {
-  const merchant = await getRequiredMerchant();
+  const org = await getRequiredOrg();
 
-  const products = await getProducts(merchant.id);
+  const products = await getProducts(org.id);
 
   const activeCount = products.filter((p: SerializedProduct) => p.isActive).length;
   const outOfStockCount = products.filter((p: SerializedProduct) => p.stock === 0).length;

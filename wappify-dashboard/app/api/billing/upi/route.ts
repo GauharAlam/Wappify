@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 
 export const dynamic = "force-dynamic";
 
 
 export async function POST(req: Request) {
   try {
-    const merchant = await getRequiredMerchant();
+    const org = await getRequiredOrg();
     const { planTier, upiRef } = await req.json();
 
     if (!planTier || !upiRef) {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
     // Upsert subscription as PENDING for Admin Review
     const subscription = await prisma.subscription.upsert({
-      where: { merchantId: merchant.id },
+      where: { orgId: org.id },
       update: {
         planTier: planTier,
         status: "PENDING",
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
         upiTransactionRef: upiRef,
       },
       create: {
-        merchantId: merchant.id,
+        orgId: org.id,
         planTier: planTier,
         status: "PENDING",
         paymentMethod: "UPI",
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("[UPI BILLING] Created pending subscription for:", merchant.id);
+    console.log("[UPI BILLING] Created pending subscription for:", org.id);
 
     return NextResponse.json({ success: true, subscription });
   } catch (error: any) {

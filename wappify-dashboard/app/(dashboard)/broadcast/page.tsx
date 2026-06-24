@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { MessageSquare, Users } from "lucide-react";
 import BroadcastUI from "@/components/dashboard/BroadcastUI";
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BroadcastPage() {
-  const merchant = await getRequiredMerchant();
+  const org = await getRequiredOrg();
 
   // ── 1. Fetch Customers ────────────────────
   // We fetch unique customers associated with this merchant's orders,
@@ -19,11 +19,9 @@ export default async function BroadcastPage() {
   // related to this merchant (or simply all customers globally if it's an early-stage SaaS).
   // Ideally, we'd have a Merchant-Customer join table, but for now
   // we'll fetch all unique customers.
-  const customers = await prisma.customer.findMany({
+  const customers = await prisma.contact.findMany({
     where: {
-      orders: {
-        some: { merchantId: merchant.id },
-      },
+      orgId: org.id,
     },
     orderBy: { createdAt: "desc" },
     take: 1000,

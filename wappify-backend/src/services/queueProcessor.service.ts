@@ -13,7 +13,7 @@ const safeStringify = (value: unknown): string => {
 
 // ─────────────────────────────────────────────
 // Store-code routing map (Redis Cache)
-// Maps customer wa_id → merchantId after their
+// Maps customer wa_id → orgId after their
 // first message contains a store code.
 // ─────────────────────────────────────────────
 
@@ -88,20 +88,20 @@ const STORE_CODE_REGEX = /^STORE[-_]?(\w+)$/i;
  * Priority:
  * 1. Check if the message text starts with "STORE-XXXX" → look up merchant by storeCode
  * 2. Check the in-memory cache (customer already routed before)
- * 3. Check the DB for any existing ChatMessage from this customer → derive merchantId
+ * 3. Check the DB for any existing Message from this customer → derive orgId
  * 4. If only one merchant exists in the system, default to that
  */
 const resolveMerchant = async (
   from: string,
   textBody?: string,
-): Promise<{ merchantId: string; isNewStoreLink: boolean; textOverride?: string } | null> => {
+): Promise<{ orgId: string; isNewStoreLink: boolean; textOverride?: string } | null> => {
 
   // ── 1. Explicit store code in message ──────
   if (textBody) {
     const match = textBody.trim().match(STORE_CODE_REGEX);
     if (match) {
       const code = match[1].toUpperCase();
-      const merchant = await prisma.merchant.findUnique({
+      const merchant = await prisma.organization.findUnique({
         where: { storeCode: code },
         select: { id: true },
       });
@@ -110,7 +110,7 @@ const resolveMerchant = async (
         // Cache for 24 hours (86400 seconds)
         await redis.setex(`route:${from}`, 86400, merchant.id).catch(e => console.warn("Redis set failed", e));
         console.log(`[QUEUE PROCESSOR] Store code "${code}" → merchant ${merchant.id}`);
-        return { merchantId: merchant.id, isNewStoreLink: true };
+        return { orgId: merchant.id, isNewStoreLink: true };
       } else {
         console.warn(`[QUEUE PROCESSOR] Unknown store code: "${code}"`);
         return null;
@@ -124,31 +124,31 @@ const resolveMerchant = async (
     if (cachedMerchantId) {
       // Refresh TTL
       redis.expire(`route:${from}`, 86400).catch(()=>{});
-      return { merchantId: cachedMerchantId, isNewStoreLink: false };
+      return { orgId: cachedMerchantId, isNewStoreLink: false };
     }
   } catch (err) {
     console.warn("[QUEUE PROCESSOR] Redis get failed, bypassing cache", err);
   }
 
   // ── 3. Previous chat history in DB ─────────
-  const previousChat = await prisma.chatMessage.findFirst({
-    where: { customerWaId: from },
+  const previousChat = await prisma.message.findFirst({
+    where: { conversation: { contact: { waId: from } } },
     orderBy: { createdAt: "desc" },
-    select: { merchantId: true },
+    select: { orgId: true },
   });
 
   if (previousChat) {
-    await redis.setex(`route:${from}`, 86400, previousChat.merchantId).catch(()=>{});
-    return { merchantId: previousChat.merchantId, isNewStoreLink: false };
+    await redis.setex(`route:${from}`, 86400, previousChat.orgId).catch(()=>{});
+    return { orgId: previousChat.orgId, isNewStoreLink: false };
   }
 
   // ── 4. Single-merchant fallback ────────────
-  const merchantCount = await prisma.merchant.count();
+  const merchantCount = await prisma.organization.count();
   if (merchantCount === 1) {
-    const merchant = await prisma.merchant.findFirst({ select: { id: true } });
+    const merchant = await prisma.organization.findFirst({ select: { id: true } });
     if (merchant) {
       await redis.setex(`route:${from}`, 86400, merchant.id).catch(()=>{});
-      return { merchantId: merchant.id, isNewStoreLink: false };
+      return { orgId: merchant.id, isNewStoreLink: false };
     }
   }
 
@@ -194,31 +194,23 @@ async function processJob(jobId: string, payload: any) {
     return;
   }
 
-  const { merchantId, isNewStoreLink } = resolution;
+  const { orgId, isNewStoreLink } = resolution;
 
   // If this was a store-code message, treat it as a greeting instead
   if (isNewStoreLink) {
-    await routeMessage(merchantId, from, "hi", customerName);
+    await routeMessage(orgId, from, "hi", customerName);
     return;
   }
 
   // Handle Media messages
   if (messageType !== "text") {
-    const mediaTypeMap: Record<string, string> = {
-      image: "image",
-      video: "video",
-      audio: "audio",
-      document: "document",
-      sticker: "sticker",
-    };
-    const mediaType = mediaTypeMap[messageType] || "file";
-    await sendMediaAcknowledgement(merchantId, from, mediaType);
+    await routeMessage(orgId, from, "", customerName, true);
     return;
   }
 
   // Handle Text messages
   if (textBody) {
-    await routeMessage(merchantId, from, textBody.trim(), customerName);
+    await routeMessage(orgId, from, textBody.trim(), customerName, false);
   }
 }
 

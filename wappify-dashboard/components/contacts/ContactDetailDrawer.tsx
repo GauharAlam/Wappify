@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 // Types
 // ─────────────────────────────────────────────
 
-export interface CustomerOrder {
+export interface ContactOrder {
   id: string;
   shortId: string;
   status: string;
@@ -24,7 +24,7 @@ export interface ChatMsg {
   createdAt: string;
 }
 
-export interface CustomerDetail {
+export interface ContactDetail {
   id: string;
   waId: string;
   name: string | null;
@@ -33,7 +33,7 @@ export interface CustomerDetail {
   totalOrders: number;
   totalSpent: number;
   avgOrderValue: number;
-  orders: CustomerOrder[];
+  orders: ContactOrder[];
   chatMessages: ChatMsg[];
 }
 
@@ -54,12 +54,12 @@ const statusStyles: Record<string, string> = {
 // ─────────────────────────────────────────────
 
 interface Props {
-  customer: CustomerDetail | null;
+  customer: ContactDetail | null;
   open: boolean;
   onClose: () => void;
 }
 
-export default function CustomerDetailDrawer({ customer, open, onClose }: Props) {
+export default function ContactDetailDrawer({ customer, open, onClose }: Props) {
   const [activeTab, setActiveTab] = useState<"orders" | "chat">("orders");
 
   if (!customer) return null;
@@ -180,7 +180,7 @@ export default function CustomerDetailDrawer({ customer, open, onClose }: Props)
 // Orders Tab
 // ─────────────────────────────────────────────
 
-function OrdersTab({ orders }: { orders: CustomerOrder[] }) {
+function OrdersTab({ orders }: { orders: ContactOrder[] }) {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">

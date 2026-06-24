@@ -10,21 +10,21 @@ import {
 import { Badge, getStatusVariant } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ShoppingCart } from "lucide-react";
-import { getRequiredMerchantId } from "@/lib/auth-utils";
+import { getRequiredOrgId } from "@/lib/auth-utils";
 
 // ─────────────────────────────────────────────
 // Data fetcher (runs server-side, direct Prisma)
 // ─────────────────────────────────────────────
 
 async function getRecentOrders() {
-  const merchantId = await getRequiredMerchantId();
+  const orgId = await getRequiredOrgId();
 
-  if (!merchantId) return [];
+  if (!orgId) return [];
 
   const orders = await prisma.order.findMany({
-    where: { merchantId },
+    where: { orgId },
     include: {
-      customer: true,
+      contact: true,
       items: {
         include: { product: true },
         take: 2,
@@ -38,8 +38,8 @@ async function getRecentOrders() {
   return orders.map((order) => ({
     id: order.id,
     shortId: order.id.slice(0, 8).toUpperCase(),
-    customerName: order.customer.name ?? "Unknown",
-    customerWaId: order.customer.waId,
+    customerName: order.contact.name ?? "Unknown",
+    customerWaId: order.contact.waId,
     status: order.status,
     totalAmount: Number(order.totalAmount),
     itemSummary:

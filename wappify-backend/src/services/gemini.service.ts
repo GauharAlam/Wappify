@@ -92,9 +92,9 @@ Always end your reply with a gentle nudge to help them take the next step.
 // Fetch merchant + products for context
 // ─────────────────────────────────────────────
 
-export const getMerchantContextData = async (merchantId: string): Promise<MerchantContextData> => {
+export const getMerchantContextData = async (orgId: string): Promise<MerchantContextData> => {
 
-  if (!merchantId) {
+  if (!orgId) {
     return {
       merchantName: "Our Store",
       aiContext: null,
@@ -102,8 +102,8 @@ export const getMerchantContextData = async (merchantId: string): Promise<Mercha
     };
   }
 
-  const merchant = await prisma.merchant.findUnique({
-    where: { id: merchantId },
+  const merchant = await prisma.organization.findUnique({
+    where: { id: orgId },
     select: {
       name: true,
       aiContext: true,
@@ -145,7 +145,7 @@ export const getMerchantContextData = async (merchantId: string): Promise<Mercha
 // ─────────────────────────────────────────────
 
 export const generateAIResponse = async (
-  merchantId: string,
+  orgId: string,
   userMessage: string,
   conversationHistory: Content[] = [],
 ): Promise<string> => {
@@ -153,7 +153,7 @@ export const generateAIResponse = async (
     const genAI = getGeminiClient();
 
     // Build dynamic system instruction from DB
-    const contextData = await getMerchantContextData(merchantId);
+    const contextData = await getMerchantContextData(orgId);
     const systemInstruction = buildMerchantContext(contextData);
 
     const model = genAI.getGenerativeModel({
@@ -196,9 +196,9 @@ export const generateAIResponse = async (
     console.log(`[GEMINI] Response received successfully (${tokenCount} tokens):`, text);
 
     // Track usage in the database asynchronously
-    if (merchantId && tokenCount > 0) {
-      prisma.merchant.update({
-        where: { id: merchantId },
+    if (orgId && tokenCount > 0) {
+      prisma.organization.update({
+        where: { id: orgId },
         data: { geminiTokensUsed: { increment: tokenCount } },
       }).catch(err => {
         console.error("[GEMINI METRICS] Failed to track token count:", err?.message || err);

@@ -8,65 +8,105 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model Merchant {
-  id                 String        @id @default(uuid())
+// ─────────────────────────────────────────────
+// Multi-Tenant: Organization (formerly Merchant)
+// ─────────────────────────────────────────────
+
+model Organization {
+  id                 String          @id @default(uuid())
   name               String
-  whatsappNumber     String        @unique
-  storeCode          String        @unique @default(cuid()) // Short code for wa.me routing (e.g. "STYLE123")
-  whatsappConnected  Boolean       @default(false)
+  slug               String          @unique @default(cuid())
+  whatsappNumber     String          @unique
+  storeCode          String          @unique @default(cuid())
+  whatsappConnected  Boolean         @default(false)
   razorpayKeyId      String?
   razorpayKeySecret  String?
-  aiContext          String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
   upiId              String?
-  // @deprecated — Twilio replaced by centralised Meta Cloud API
-  twilioAccountSid   String?
-  // @deprecated — Twilio replaced by centralised Meta Cloud API
-  twilioAuthToken    String?
-  geminiTokensUsed   Int           @default(0)
-  messagesSent       Int           @default(0)  // Renamed from twilioMessagesSent
-  userId             String?
-  user               User?         @relation(fields: [userId], references: [id])
+  aiContext           String?
+  timezone           String          @default("Asia/Kolkata")
+  logoUrl            String?
+  businessHoursSchedule Json?
+  onboardingCompleted  Boolean         @default(false)
+  selectedTemplate     String?
+  geminiTokensUsed   Int             @default(0)
+  messagesSent       Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  // Relations
+  members            OrgMember[]
   orders             Order[]
   products           Product[]
   subscription       Subscription?
+  conversations      Conversation[]
+  messages           Message[]
+  tags               Tag[]
+  auditLogs          AuditLog[]
+  contacts           Contact[]
+  automationRules    AutomationRule[]
+
+  // @deprecated — kept for backward compat, use OrgMember instead
+  twilioAccountSid   String?
+  twilioAuthToken    String?
 
   @@index([storeCode])
+  @@index([slug])
 }
 
-model Subscription {
-  id                     String             @id @default(uuid())
-  merchantId             String             @unique
-  planTier               PlanTier           @default(STARTER)
-  status                 SubscriptionStatus @default(CREATED)
-  paymentMethod          String             @default("RAZORPAY")
-  upiTransactionRef      String?            @unique
-  razorpaySubscriptionId String?            @unique
-  razorpayPlanId         String?
-  razorpayCustomerId     String?
-  currentPeriodStart     DateTime?
-  currentPeriodEnd       DateTime?
-  trialEndsAt            DateTime?
-  cancelledAt            DateTime?
-  createdAt              DateTime           @default(now())
-  updatedAt              DateTime           @updatedAt
-  merchant               Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+// ─────────────────────────────────────────────
+// Organization Members (User ↔ Organization)
+// ─────────────────────────────────────────────
+
+model OrgMember {
+  id             String       @id @default(uuid())
+  orgId          String
+  userId         String?
+  email          String
+  role           OrgRole      @default(AGENT)
+  isActive       Boolean      @default(true)
+  invitedAt      DateTime     @default(now())
+  joinedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  assignedConvos Conversation[] @relation("AssignedAgent")
+  sentMessages   Message[]    @relation("SenderMember")
+
+  @@unique([orgId, email])
+  @@unique([orgId, userId])
+  @@index([orgId])
+  @@index([userId])
 }
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  AGENT
+}
+
+// ─────────────────────────────────────────────
+// Users (Auth — linked via Clerk)
+// ─────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String?
-  email         String?    @unique
+  email         String?     @unique
   emailVerified DateTime?
   image         String?
   password      String?
-  role          UserRole   @default(USER)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  role          UserRole    @default(USER)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // Relations
   accounts      Account[]
-  merchants     Merchant[]
   sessions      Session[]
+  memberships   OrgMember[]
+  auditLogs     AuditLog[]
 }
 
 model Account {
@@ -103,18 +143,190 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model Customer {
-  id        String   @id @default(uuid())
-  waId      String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  orders    Order[]
+// ─────────────────────────────────────────────
+// Subscription / Billing
+// ─────────────────────────────────────────────
+
+model Subscription {
+  id                     String             @id @default(uuid())
+  orgId                  String             @unique
+  planTier               PlanTier           @default(STARTER)
+  status                 SubscriptionStatus @default(CREATED)
+  paymentMethod          String             @default("RAZORPAY")
+  upiTransactionRef      String?            @unique
+  razorpaySubscriptionId String?            @unique
+  razorpayPlanId         String?
+  razorpayCustomerId     String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  trialEndsAt            DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  org                    Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
+
+// ─────────────────────────────────────────────
+// Contacts (Customers on WhatsApp)
+// ─────────────────────────────────────────────
+
+model Contact {
+  id        String         @id @default(uuid())
+  orgId     String
+  waId      String
+  name      String?
+  email     String?
+  phone     String?
+  notes     String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  // Relations
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orders        Order[]
+  conversations Conversation[]
+
+  @@unique([orgId, waId])
+  @@index([orgId])
+  @@index([waId])
+}
+
+// ─────────────────────────────────────────────
+// Conversations (Thread per Contact per Org)
+// ─────────────────────────────────────────────
+
+model Conversation {
+  id                 String             @id @default(uuid())
+  orgId              String
+  contactId          String
+  status             ConversationStatus @default(OPEN)
+  assignedToId       String?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  unreadCount        Int                @default(0)
+  isEscalated        Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Relations
+  org        Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  contact    Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedTo OrgMember?       @relation("AssignedAgent", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages   Message[]
+  tags       ConversationTag[]
+
+  @@unique([orgId, contactId])
+  @@index([orgId, status])
+  @@index([orgId, lastMessageAt])
+  @@index([assignedToId])
+}
+
+enum ConversationStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+  CLOSED
+}
+
+// ─────────────────────────────────────────────
+// Messages (Individual chat messages)
+// ─────────────────────────────────────────────
+
+model Message {
+  id                String           @id @default(uuid())
+  orgId             String
+  conversationId    String
+  direction         MessageDirection
+  content           String
+  type              MessageType      @default(TEXT)
+  mediaUrl          String?
+  senderMemberId    String?
+  whatsappMessageId String?
+  createdAt         DateTime         @default(now())
+
+  // Relations
+  org            Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  conversation   Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderMember   OrgMember?    @relation("SenderMember", fields: [senderMemberId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([orgId, createdAt])
+  @@index([whatsappMessageId])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  STICKER
+}
+
+// ─────────────────────────────────────────────
+// Tags (for Conversations)
+// ─────────────────────────────────────────────
+
+model Tag {
+  id        String            @id @default(uuid())
+  orgId     String
+  name      String
+  color     String            @default("#6366f1")
+  createdAt DateTime          @default(now())
+
+  org           Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  conversations ConversationTag[]
+  automationRules AutomationRule[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+}
+
+model ConversationTag {
+  conversationId String
+  tagId          String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag          Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, tagId])
+}
+
+// ─────────────────────────────────────────────
+// Audit Logs
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  orgId     String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, entity])
+}
+
+// ─────────────────────────────────────────────
+// Products
+// ─────────────────────────────────────────────
 
 model Product {
   id          String      @id @default(uuid())
-  merchantId  String
+  orgId       String
   name        String
   description String?
   price       Decimal     @db.Decimal(10, 2)
@@ -126,33 +338,37 @@ model Product {
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]
   cartItems   CartItem[]
-  merchant    Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 }
+
+// ─────────────────────────────────────────────
+// Orders & Cart
+// ─────────────────────────────────────────────
 
 model Order {
   id                String      @id @default(uuid())
-  merchantId        String
-  customerId        String
+  orgId             String
+  contactId         String
   status            OrderStatus @default(PENDING)
   totalAmount       Decimal     @db.Decimal(10, 2)
   razorpayOrderId   String?     @unique
   razorpayPaymentId String?     @unique
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
-  customer          Customer    @relation(fields: [customerId], references: [id])
-  merchant          Merchant    @relation(fields: [merchantId], references: [id])
+  contact           Contact     @relation(fields: [contactId], references: [id])
+  org               Organization @relation(fields: [orgId], references: [id])
   items             OrderItem[]
 }
 
 model Cart {
   id         String     @id @default(uuid())
-  merchantId String
-  customerId String
+  orgId      String
+  contactId  String
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   items      CartItem[]
 
-  @@unique([merchantId, customerId])
+  @@unique([orgId, contactId])
 }
 
 model CartItem {
@@ -176,6 +392,10 @@ model OrderItem {
   product     Product @relation(fields: [productId], references: [id])
 }
 
+// ─────────────────────────────────────────────
+// Webhook Queue (Background Processing)
+// ─────────────────────────────────────────────
+
 model WebhookEvent {
   id        String    @id @default(uuid())
   payload   Json
@@ -185,23 +405,19 @@ model WebhookEvent {
   updatedAt DateTime  @updatedAt
 }
 
-model ChatMessage {
-  id           String   @id @default(uuid())
-  merchantId   String
-  customerWaId String
-  sender       String
-  message      String
-  createdAt    DateTime @default(now())
-
-  @@index([merchantId, customerWaId])
-  @@index([merchantId, createdAt])
-}
+// ─────────────────────────────────────────────
+// Platform Settings (Global Admin)
+// ─────────────────────────────────────────────
 
 model PlatformSettings {
   id         String   @id @default("global")
   adminUpiId String?
   updatedAt  DateTime @updatedAt
 }
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
 
 enum OrderStatus {
   PENDING
@@ -238,4 +454,56 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ─────────────────────────────────────────────
+// Automation Rules
+// ─────────────────────────────────────────────
+
+model AutomationRule {
+  id           String      @id @default(uuid())
+  orgId        String
+  name         String
+  isActive     Boolean     @default(true)
+  priority     Int         @default(0)
+  trigger      AutoTrigger
+  keywords     String[]    @default([])
+  matchMode    MatchMode   @default(EXACT)
+  action       AutoAction
+  responseText String?
+  tagId        String?
+  source       String      @default("user")
+  templateId   String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tag          Tag?         @relation(fields: [tagId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, isActive, priority])
+  @@index([orgId, templateId])
+  @@unique([orgId, templateId, name])
+}
+
+enum AutoTrigger {
+  KEYWORD
+  FIRST_MESSAGE
+  OUTSIDE_HOURS
+  MEDIA_RECEIVED
+  ALL_MESSAGES
+}
+
+enum MatchMode {
+  EXACT
+  CONTAINS
+  STARTS_WITH
+}
+
+enum AutoAction {
+  SEND_TEXT
+  SEND_CATALOG
+  SEND_GREETING
+  FORWARD_TO_AI
+  ESCALATE_TO_HUMAN
+  SET_TAG
 }

@@ -2,7 +2,7 @@ import { prisma } from "./prisma";
 import { MOCK_CATALOG } from "../config/mockCatalog";
 
 /**
- * Generates a short, human-readable store code from the merchant name.
+ * Generates a short, human-readable store code from the org name.
  * E.g. "StyleHouse India" → "STYLEHOUSE"
  */
 const generateStoreCode = (name: string): string => {
@@ -13,11 +13,11 @@ const generateStoreCode = (name: string): string => {
 };
 
 export const ensureSeedData = async (): Promise<void> => {
-  const merchantId = process.env.MERCHANT_ID;
+  const orgId = process.env.ORG_ID;
 
-  if (!merchantId) {
+  if (!orgId) {
     console.warn(
-      "[SEED] MERCHANT_ID is not set in .env — skipping seed. Orders will not work until this is set.",
+      "[SEED] ORG_ID is not set in .env — skipping seed. Orders will not work until this is set.",
     );
     return;
   }
@@ -25,43 +25,42 @@ export const ensureSeedData = async (): Promise<void> => {
   console.log("[SEED] Verifying seed data in database...");
 
   try {
-    // ── 1. Upsert Merchant ───────────────────────────────────────────
-    // Strategy: find by id first, then handle creation/update.
-    // The storeCode field is now required and unique.
+    // ── 1. Upsert Organization ───────────────────────────────────────────
 
-    let merchant = await prisma.merchant.findUnique({
-      where: { id: merchantId },
+    let org = await prisma.organization.findUnique({
+      where: { id: orgId },
     });
 
-    const merchantName = "StyleHouse India";
-    const storeCode = generateStoreCode(merchantName);
+    const orgName = "StyleHouse India";
+    const storeCode = generateStoreCode(orgName);
     const waNumber = process.env.WHATSAPP_BUSINESS_NUMBER || "0000000000";
 
-    if (!merchant) {
+    if (!org) {
       // Check for stale records that might conflict on unique fields
-      const staleByCode = await prisma.merchant.findUnique({
+      const staleByCode = await prisma.organization.findUnique({
         where: { storeCode },
       });
       if (staleByCode) {
-        await prisma.product.deleteMany({ where: { merchantId: staleByCode.id } });
-        await prisma.merchant.delete({ where: { id: staleByCode.id } });
-        console.log(`[SEED] Removed stale merchant with code "${storeCode}"`);
+        await prisma.product.deleteMany({ where: { orgId: staleByCode.id } });
+        await prisma.organization.delete({ where: { id: staleByCode.id } });
+        console.log(`[SEED] Removed stale org with code "${storeCode}"`);
       }
 
-      const staleByNumber = await prisma.merchant.findUnique({
+      const staleByNumber = await prisma.organization.findUnique({
         where: { whatsappNumber: waNumber },
       });
       if (staleByNumber) {
-        await prisma.product.deleteMany({ where: { merchantId: staleByNumber.id } });
-        await prisma.merchant.delete({ where: { id: staleByNumber.id } });
-        console.log(`[SEED] Removed stale merchant with number "${waNumber}"`);
+        await prisma.product.deleteMany({ where: { orgId: staleByNumber.id } });
+        await prisma.organization.delete({ where: { id: staleByNumber.id } });
+        console.log(`[SEED] Removed stale org with number "${waNumber}"`);
       }
 
-      // Create fresh merchant with store code
-      merchant = await prisma.merchant.create({
+      // Create fresh organization with store code
+      org = await prisma.organization.create({
         data: {
-          id: merchantId,
-          name: merchantName,
+          id: orgId,
+          name: orgName,
+          slug: storeCode.toLowerCase(),
           whatsappNumber: waNumber,
           storeCode,
           whatsappConnected: true,
@@ -72,9 +71,9 @@ export const ensureSeedData = async (): Promise<void> => {
         },
       });
     } else {
-      // Merchant exists — update non-sensitive fields
-      merchant = await prisma.merchant.update({
-        where: { id: merchantId },
+      // Org exists — update non-sensitive fields
+      org = await prisma.organization.update({
+        where: { id: orgId },
         data: {
           storeCode,
           whatsappConnected: true,
@@ -85,10 +84,10 @@ export const ensureSeedData = async (): Promise<void> => {
     }
 
     console.log(
-      `[SEED] ✅ Merchant ready: "${merchant.name}" (id: ${merchant.id}, storeCode: ${merchant.storeCode})`,
+      `[SEED] ✅ Organization ready: "${org.name}" (id: ${org.id}, storeCode: ${org.storeCode})`,
     );
     console.log(
-      `[SEED]    WhatsApp Link: https://wa.me/${waNumber}?text=STORE-${merchant.storeCode}`,
+      `[SEED]    WhatsApp Link: https://wa.me/${waNumber}?text=STORE-${org.storeCode}`,
     );
 
     // ── 2. Upsert Products ───────────────────────────────────────────
@@ -106,7 +105,7 @@ export const ensureSeedData = async (): Promise<void> => {
         },
         create: {
           id: product.id,
-          merchantId: merchant.id,
+          orgId: org.id,
           name: product.name,
           description: product.description,
           price: product.price,

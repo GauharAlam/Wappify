@@ -20,9 +20,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const merchant = context.merchant;
+    const org = context.org;
 
-    if (!merchant || !merchant.whatsappNumber) {
+    if (!org || !org.whatsappNumber) {
         return NextResponse.json({ error: "WhatsApp not configured. Complete onboarding first." }, { status: 400 });
     }
 

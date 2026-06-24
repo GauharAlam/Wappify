@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
-import { getRequiredMerchant } from "@/lib/auth-utils";
+import { getRequiredOrg } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { TrendingUp, Users, ShoppingBag, IndianRupee } from "lucide-react";
 import AnalyticsCharts from "@/components/dashboard/AnalyticsCharts";
@@ -12,17 +12,17 @@ export const metadata: Metadata = {
 };
 
 export default async function AnalyticsPage() {
-  const merchant = await getRequiredMerchant();
+  const org = await getRequiredOrg();
 
   // ── 1. Fetch Data ─────────────────────────
   const orders = await prisma.order.findMany({
-    where: { merchantId: merchant.id, status: "PAID" },
+    where: { orgId: org.id, status: "PAID" },
     include: { items: { include: { product: true } } },
     orderBy: { createdAt: "asc" },
   });
 
-  const totalCustomers = await prisma.customer.count({
-    where: { orders: { some: { merchantId: merchant.id } } },
+  const totalCustomers = await prisma.contact.count({
+    where: { orgId: org.id },
   });
 
   // ── 2. Aggregations ────────────────────────
