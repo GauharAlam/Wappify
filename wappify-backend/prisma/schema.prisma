@@ -397,12 +397,17 @@ model OrderItem {
 // ─────────────────────────────────────────────
 
 model WebhookEvent {
-  id        String    @id @default(uuid())
-  payload   Json
-  status    JobStatus @default(PENDING)
-  error     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  externalEventId String?   @unique
+  payload         Json
+  status          JobStatus @default(PENDING)
+  attempts        Int       @default(0)
+  nextAttemptAt   DateTime?
+  error           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status, nextAttemptAt, createdAt])
 }
 
 // ─────────────────────────────────────────────

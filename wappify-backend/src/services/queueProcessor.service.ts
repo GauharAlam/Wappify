@@ -1,15 +1,10 @@
 import { prisma } from "../lib/prisma";
 import { routeMessage } from "./messageRouter.service";
-import { sendMediaAcknowledgement, sendTextMessage } from "./whatsapp.service";
 import { redis } from "../lib/redis";
 
-const safeStringify = (value: unknown): string => {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return "[Unable to stringify payload]";
-  }
-};
+const POLL_INTERVAL_MS = Number(process.env.WEBHOOK_QUEUE_POLL_MS || 2_000);
+const MAX_QUEUE_ATTEMPTS = Number(process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS || 5);
+const COMPLETED_EVENT_RETENTION_DAYS = Number(process.env.WEBHOOK_EVENT_RETENTION_DAYS || 14);
 
 // ─────────────────────────────────────────────
 // Store-code routing map (Redis Cache)
@@ -171,15 +166,13 @@ async function processJob(jobId: string, payload: any) {
 
   if (!from) return;
 
-  console.log(`[QUEUE PROCESSOR] Processing message ${messageId} from ${from}`);
+  console.log(`[QUEUE PROCESSOR] Processing WhatsApp message ${messageId || jobId}.`);
 
   // ── Resolve merchant via store-code routing ──
   const resolution = await resolveMerchant(from, textBody);
 
   if (!resolution) {
-    console.warn(
-      `[QUEUE PROCESSOR] Could not resolve merchant for ${from}. Message: "${textBody || "(media)"}"`,
-    );
+    console.warn("[QUEUE PROCESSOR] Could not resolve a merchant for an incoming message.");
 
     // Send a helper message to unrouted customers
     try {
@@ -219,47 +212,79 @@ async function processJob(jobId: string, payload: any) {
  */
 export async function runQueueProcessor() {
   console.log("⚡ Queue Processor Initialized (Meta Cloud API mode)");
-  
-  setInterval(async () => {
+
+  let isProcessing = false;
+  let lastRetentionCleanup = 0;
+
+  const processNextJob = async () => {
+    if (isProcessing) return;
+    isProcessing = true;
+
     try {
-      // Find and lock one pending job using PostgreSQL SKIP LOCKED
-      const jobs = await prisma.$queryRaw<Array<{ id: string; payload: any }>>`
+      // Recover jobs stranded by a process restart before reserving the next job.
+      await prisma.webhookEvent.updateMany({
+        where: { status: "PROCESSING", updatedAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } },
+        data: { status: "PENDING", nextAttemptAt: new Date() },
+      });
+
+      const jobs = await prisma.$queryRaw<Array<{ id: string; payload: unknown; attempts: number }>>`
         UPDATE "WebhookEvent"
-        SET status = 'PROCESSING', "updatedAt" = NOW()
+        SET status = 'PROCESSING', attempts = attempts + 1, "updatedAt" = NOW()
         WHERE id = (
           SELECT id
           FROM "WebhookEvent"
           WHERE status = 'PENDING'
+            AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= NOW())
           ORDER BY "createdAt" ASC
           FOR UPDATE SKIP LOCKED
           LIMIT 1
         )
-        RETURNING id, payload;
+        RETURNING id, payload, attempts;
       `;
 
       if (!jobs || jobs.length === 0) return;
 
       const job = jobs[0];
+      console.log(`[QUEUE PROCESSOR] Processing event ${job.id}, attempt ${job.attempts}.`);
 
-      console.log(`[QUEUE PROCESSOR] Picked up job ${job.id}`);
-
-      // Process it
-      await processJob(job.id, job.payload);
-
-      // Mark completed & Cleanup: delete completed jobs to save DB space
-      await prisma.webhookEvent.delete({ where: { id: job.id } }).catch(()=>{});
-
-    } catch (error: any) {
-      console.error("[QUEUE PROCESSOR] Error processing job:");
-      console.error(error);
-      // Failsafe rollback
       try {
-        await prisma.$queryRaw`
-          UPDATE "WebhookEvent"
-          SET status = 'FAILED', error = SUBSTRING(${error?.message || 'Unknown error'}, 1, 500)
-          WHERE status = 'PROCESSING' AND "updatedAt" < NOW() - INTERVAL '1 minute'
-        `;
-      } catch (e) {}
+        await processJob(job.id, job.payload);
+        await prisma.webhookEvent.update({
+          where: { id: job.id },
+          data: { status: "COMPLETED", error: null, nextAttemptAt: null },
+        });
+      } catch (error: any) {
+        const isFinalAttempt = job.attempts >= MAX_QUEUE_ATTEMPTS;
+        const backoffMinutes = Math.min(2 ** (job.attempts - 1), 60);
+        const errorMessage = error instanceof Error ? error.message.slice(0, 500) : "Unknown webhook processing error";
+
+        await prisma.webhookEvent.update({
+          where: { id: job.id },
+          data: {
+            status: isFinalAttempt ? "FAILED" : "PENDING",
+            error: errorMessage,
+            nextAttemptAt: isFinalAttempt ? null : new Date(Date.now() + backoffMinutes * 60 * 1000),
+          },
+        });
+        console.error(`[QUEUE PROCESSOR] Event ${job.id} ${isFinalAttempt ? "failed permanently" : "scheduled for retry"}.`);
+      }
+
+      if (Date.now() - lastRetentionCleanup > 24 * 60 * 60 * 1000) {
+        lastRetentionCleanup = Date.now();
+        await prisma.webhookEvent.deleteMany({
+          where: {
+            status: "COMPLETED",
+            updatedAt: { lt: new Date(Date.now() - COMPLETED_EVENT_RETENTION_DAYS * 24 * 60 * 60 * 1000) },
+          },
+        });
+      }
+    } catch (error: any) {
+      console.error("[QUEUE PROCESSOR] Could not reserve or update a webhook event:", error?.message || "Unknown error");
+    } finally {
+      isProcessing = false;
     }
-  }, 2000); // Polling every 2 seconds
+  };
+
+  await processNextJob();
+  setInterval(() => void processNextJob(), POLL_INTERVAL_MS);
 }

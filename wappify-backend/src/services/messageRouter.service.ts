@@ -413,7 +413,7 @@ const handleBuyRequest = async (
       ].join("\n");
 
       await sendTextMessage(orgId, from, message);
-      console.log(`[ROUTER] ✅ Razorpay link sent to ${from} for order #${shortOrderId}`);
+      console.log(`[ROUTER] Razorpay link sent for order #${shortOrderId}.`);
     }
 
     // ─────────────────────────────────────────
@@ -454,7 +454,7 @@ const handleBuyRequest = async (
       ].join("\n");
 
       await sendTextMessage(orgId, from, message);
-      console.log(`[ROUTER] ✅ UPI link sent to ${from} for order #${shortOrderId}`);
+      console.log(`[ROUTER] UPI link sent for order #${shortOrderId}.`);
     }
 
   } catch (error: any) {
@@ -521,11 +521,7 @@ export const routeMessage = async (
     return;
   }
 
-  console.log("────────────────────────────────────────");
-  console.log(`[ROUTER] From       : ${from}`);
-  console.log(`[ROUTER] Customer   : ${customerName || "Unknown"}`);
-  console.log(`[ROUTER] Message    : "${isMedia ? "[Media Message]" : trimmedText}"`);
-  console.log("────────────────────────────────────────");
+  console.log(`[ROUTER] Processing ${isMedia ? "media" : "text"} message for conversation ${conversation?.id || "unknown"}.`);
 
   // Check business hours
   const isOutsideHours = !isWithinBusinessHours(org?.businessHoursSchedule, org?.timezone);

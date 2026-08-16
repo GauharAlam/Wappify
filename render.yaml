@@ -1,10 +1,11 @@
 services:
   - type: web
     name: wappify-backend
-    env: node
+    runtime: node
     rootDir: wappify-backend
-    plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
+    plan: starter
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -17,6 +18,10 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
@@ -24,6 +29,10 @@ services:
       - key: WHATSAPP_ACCESS_TOKEN
         sync: false
       - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_BUSINESS_NUMBER
+        sync: false
+      - key: DASHBOARD_URL
         sync: false
       - key: BASE_URL
         sync: false

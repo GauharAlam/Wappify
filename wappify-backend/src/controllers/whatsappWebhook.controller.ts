@@ -1,13 +1,28 @@
+import crypto from "crypto";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { verifyWebhookChallenge } from "../services/metaWhatsapp.service";
 
-const safeStringify = (value: unknown): string => {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return "[Unable to stringify payload]";
-  }
+const verifyMetaSignature = (rawBody: Buffer, signature: string | undefined) => {
+  const appSecret = process.env.META_APP_SECRET;
+
+  if (!appSecret || !signature?.startsWith("sha256=")) return false;
+
+  const expected = `sha256=${crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex")}`;
+  const receivedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+
+  return receivedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
+};
+
+const getWhatsAppMessageId = (body: unknown): string | null => {
+  if (!body || typeof body !== "object") return null;
+
+  const payload = body as {
+    entry?: Array<{ changes?: Array<{ value?: { messages?: Array<{ id?: string }> } }> }>;
+  };
+
+  return payload.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.id ?? null;
 };
 
 // ─────────────────────────────────────────────
@@ -72,41 +87,51 @@ export const receiveWhatsAppWebhook = async (
   res: Response,
 ): Promise<void> => {
   try {
-    console.log(
-      "\n================ WHATSAPP WEBHOOK RECEIVED ================",
-    );
-    console.log("[WHATSAPP POST] Timestamp        :", new Date().toISOString());
-    console.log("[WHATSAPP POST] Raw Body:\n", safeStringify(req.body));
-    console.log("==========================================================\n");
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+    const signature = req.header("x-hub-signature-256");
 
-    const body = req.body;
+    if (!verifyMetaSignature(rawBody, signature)) {
+      console.warn("[WHATSAPP WEBHOOK] Rejected request with an invalid Meta signature.");
+      res.status(401).send("Invalid webhook signature");
+      return;
+    }
 
-    // ── Guard: valid Meta webhook body ───────────────
-    if (!body || body.object !== "whatsapp_business_account") {
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.toString("utf8"));
+    } catch {
+      res.status(400).send("Invalid JSON payload");
+      return;
+    }
+
+    if (!body || typeof body !== "object" || (body as { object?: string }).object !== "whatsapp_business_account") {
       console.warn("[WHATSAPP POST] Non-WhatsApp payload — ignoring");
       res.status(200).send("EVENT_RECEIVED");
       return;
     }
 
-    // ── Always respond to Meta immediately ───
-    // Meta expects a 200 within 20 seconds. Always ack first.
+    const externalEventId = getWhatsAppMessageId(body);
+
+    if (externalEventId) {
+      await prisma.webhookEvent.upsert({
+        where: { externalEventId },
+        update: {},
+        create: { payload: body as object, externalEventId, status: "PENDING" },
+      });
+    } else {
+      await prisma.webhookEvent.create({ data: { payload: body as object, status: "PENDING" } });
+    }
+
+    console.log(`[WHATSAPP WEBHOOK] Event queued${externalEventId ? ` (${externalEventId})` : ""}.`);
+    // Acknowledge only after the durable queue write succeeds. If the write
+    // fails, Meta receives a retryable response instead of silently losing work.
     res.status(200).send("EVENT_RECEIVED");
-
-    // ── Enqueue the payload into the Database ────
-    await prisma.webhookEvent.create({
-      data: {
-        payload: body,
-        status: "PENDING",
-      },
-    });
-
-    console.log("[WHATSAPP POST] Event successfully queued to DB.");
   } catch (error) {
     console.error("[WHATSAPP POST] Error queuing webhook event:");
     console.error(error);
-    // If we haven't responded yet, send 200 to prevent Meta retries
+    // Meta retries non-2xx webhook deliveries, which is safer than dropping an event.
     if (!res.headersSent) {
-      res.status(200).send("EVENT_RECEIVED");
+      res.status(500).send("Webhook queue unavailable");
     }
   }
 };

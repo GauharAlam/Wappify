@@ -20,8 +20,10 @@ export default async function DashboardLayout({
         <Header
           userName={appUser.name || org.name || "User"}
           email={appUser.email ?? undefined}
+          orgName={org.name}
+          role={membership.role}
         />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
           {children}
         </main>
       </div>

@@ -10,11 +10,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Wappify — WhatsApp Commerce Dashboard",
+    default: "Wappify — WhatsApp Growth Platform",
     template: "%s | Wappify",
   },
   description:
-    "AI-powered WhatsApp commerce automation platform for D2C brands in India.",
+    "The all-in-one WhatsApp platform to market, sell products, automate conversations, and build lasting customer relationships.",
   keywords: ["whatsapp", "commerce", "automation", "d2c", "india", "ai"],
 };
 

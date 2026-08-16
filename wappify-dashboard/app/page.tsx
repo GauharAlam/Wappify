@@ -1,693 +1,334 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
+import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import { 
-  MessageSquare, 
-  Zap, 
-  ShoppingBag, 
-  TrendingUp, 
-  CheckCircle2, 
+import {
   ArrowRight,
-  ShieldCheck,
-  Globe,
-  Smartphone,
-  Cpu,
-  BookOpen,
-  Rocket,
-  HeartHandshake,
-  IndianRupee,
+  BarChart3,
   Bot,
-  Megaphone,
+  Check,
   ChevronDown,
-  Star,
-  Users,
-  Clock
+  CircleHelp,
+  Menu,
+  MessageSquareMore,
+  Package,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  UsersRound,
+  Workflow,
+  X,
+  Zap,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
-const fadeIn = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.6 }
-};
+const modules = [
+  {
+    title: "Sell on WhatsApp",
+    description: "Share a shoppable catalogue, collect orders, and help customers check out without leaving the chat.",
+    icon: ShoppingBag,
+    tone: "bg-emerald-500",
+    status: "Available now",
+  },
+  {
+    title: "Shared Team Inbox",
+    description: "Give every customer a fast, personal reply with assignments, notes, and seamless human handoff.",
+    icon: MessageSquareMore,
+    tone: "bg-sky-500",
+    status: "Available now",
+  },
+  {
+    title: "Campaigns that convert",
+    description: "Launch targeted broadcasts for launches, restocks, offers, and abandoned carts—at the right moment.",
+    icon: Zap,
+    tone: "bg-violet-500",
+    status: "Growing next",
+  },
+  {
+    title: "Customer intelligence",
+    description: "Keep every customer’s conversations, orders, tags, and preferences in one living profile.",
+    icon: UsersRound,
+    tone: "bg-amber-500",
+    status: "Growing next",
+  },
+  {
+    title: "Always-on automation",
+    description: "Answer FAQs, qualify intent, recover carts, and route shoppers to your team automatically.",
+    icon: Bot,
+    tone: "bg-fuchsia-500",
+    status: "Available now",
+  },
+  {
+    title: "Revenue analytics",
+    description: "See which conversations, campaigns, and products are turning into revenue.",
+    icon: BarChart3,
+    tone: "bg-indigo-500",
+    status: "Available now",
+  },
+];
 
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
-};
+const steps = [
+  {
+    number: "01",
+    title: "Connect your WhatsApp",
+    description: "Bring the business number your customers already know into one secure workspace.",
+    icon: MessageSquareMore,
+  },
+  {
+    number: "02",
+    title: "Add what you sell",
+    description: "Upload products, prices, and offers so every chat can become a buying moment.",
+    icon: Package,
+  },
+  {
+    number: "03",
+    title: "Turn on your growth flows",
+    description: "Set up campaigns and smart automations for the customer moments that matter most.",
+    icon: Workflow,
+  },
+];
+
+const faqs = [
+  {
+    question: "Who is Wappify for?",
+    answer: "Wappify is for any business that wants to use WhatsApp as a serious sales, marketing, and customer relationship channel—not just a support inbox.",
+  },
+  {
+    question: "Do I need to use AI?",
+    answer: "No. Start with campaigns, catalogue selling, and a shared inbox. AI is there when you want to automate repetitive conversations at scale.",
+  },
+  {
+    question: "Can a human take over a conversation?",
+    answer: "Yes. Your team can take over any automated conversation, with the full customer and order context ready to go.",
+  },
+];
+
+function LandingButton({
+  href,
+  children,
+  variant = "primary",
+}: {
+  href: string;
+  children: React.ReactNode;
+  variant?: "primary" | "secondary" | "dark";
+}) {
+  const styles = {
+    primary: "bg-emerald-500 text-white shadow-[0_16px_30px_-14px_rgba(16,185,129,0.8)] hover:bg-emerald-600",
+    secondary: "border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50",
+    dark: "bg-slate-950 text-white shadow-[0_16px_30px_-14px_rgba(15,23,42,0.75)] hover:bg-slate-800",
+  };
+
+  return (
+    <Link href={href} className={`inline-flex h-12 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition-all duration-200 hover:-translate-y-0.5 ${styles[variant]}`}>
+      {children}
+    </Link>
+  );
+}
 
 export default function LandingPage() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openFaq, setOpenFaq] = useState(0);
+
   return (
-    <div className="min-h-screen bg-white text-slate-900 selection:bg-emerald-100 selection:text-emerald-900">
-      
-      {/* ── Navigation ────────────────────── */}
-      <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <a href="#" className="flex items-center gap-2.5 outline-none">
-            <img src="/logo.svg" alt="Wappify Logo" className="w-9 h-9 rounded-xl shrink-0" />
-            <span className="text-xl font-bold tracking-tight">Wappify</span>
-          </a>
-          
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
-            <a href="#features" className="hover:text-emerald-600 transition-colors">Features</a>
-            <a href="#jaaniye" className="hover:text-emerald-600 transition-colors">Janiye</a>
-            <a href="#demo" className="hover:text-emerald-600 transition-colors">How it works</a>
-            <a href="#pricing" className="hover:text-emerald-600 transition-colors">Pricing</a>
+    <div className="min-h-screen overflow-x-hidden bg-[#fcfdfb] text-slate-950 selection:bg-emerald-100 selection:text-emerald-950 dark:bg-[#fcfdfb] dark:text-slate-950">
+      <nav className="sticky top-0 z-50 border-b border-slate-200/70 bg-[#fcfdfb]/90 backdrop-blur-xl dark:border-slate-200/70 dark:bg-[#fcfdfb]/90">
+        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="Wappify home">
+            <Image src="/logo.svg" alt="" width={40} height={40} className="h-10 w-10" priority />
+            <span className="text-xl font-semibold tracking-tight text-slate-950">Wappify</span>
+          </Link>
+
+          <div className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+            <a href="#product" className="transition-colors hover:text-slate-950">Product</a>
+            <a href="#how-it-works" className="transition-colors hover:text-slate-950">How it works</a>
+            <a href="#pricing" className="transition-colors hover:text-slate-950">Pricing</a>
+            <a href="#faq" className="transition-colors hover:text-slate-950">FAQ</a>
           </div>
 
-          <div className="flex items-center gap-4">
-            <Link href="/login">
-              <Button variant="ghost" className="hidden sm:inline-flex text-slate-600 h-10 px-4">Login</Button>
-            </Link>
-            <Link href="/register">
-              <Button className="bg-slate-900 hover:bg-slate-800 text-white rounded-full px-6 h-10 shadow-xl shadow-slate-200 transition-all hover:-translate-y-0.5">
-                Start Free Trial
-              </Button>
-            </Link>
+          <div className="hidden items-center gap-2.5 md:flex">
+            <Link href="/login" className="px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:text-slate-950">Log in</Link>
+            <LandingButton href="/register" variant="dark">Start selling <ArrowRight className="h-4 w-4" /></LandingButton>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 md:hidden"
+            aria-label={mobileMenuOpen ? "Close navigation" : "Open navigation"}
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="border-t border-slate-200 bg-white px-5 py-5 md:hidden">
+            <div className="flex flex-col gap-1">
+              {[
+                ["Product", "#product"],
+                ["How it works", "#how-it-works"],
+                ["Pricing", "#pricing"],
+                ["FAQ", "#faq"],
+              ].map(([label, href]) => (
+                <a key={href} href={href} onClick={() => setMobileMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  {label}
+                </a>
+              ))}
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <LandingButton href="/login" variant="secondary">Log in</LandingButton>
+                <LandingButton href="/register" variant="dark">Get started</LandingButton>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
 
-      {/* ── Hero Section ──────────────────── */}
-      <header id="top" className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full -z-10">
-            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-50 rounded-full blur-[120px] opacity-60" />
-            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-50 rounded-full blur-[120px] opacity-60" />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid lg:grid-cols-2 gap-12 items-center text-center lg:text-left">
-            <motion.div 
-              initial="initial"
-              animate="animate"
-              variants={staggerContainer}
-              className="space-y-8"
-            >
-              <motion.div variants={fadeIn}>
-                <span className="inline-flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider rounded-full border border-emerald-100">
-                  <Zap className="h-3 w-3 fill-current" />
-                  Now with Gemini 1.5 Pro
-                </span>
-              </motion.div>
-              
-              <motion.h1 variants={fadeIn} className="text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.1]">
-                Scale Your D2C Brand on <span className="text-emerald-500">WhatsApp.</span>
-              </motion.h1>
-              
-              <motion.p variants={fadeIn} className="text-xl text-slate-600 max-w-xl mx-auto lg:mx-0 leading-relaxed font-medium">
-                Turn your WhatsApp into a high-revenue storefront. Automate catalogs, support, and payments with the power of AI.
-              </motion.p>
-              
-              <motion.div variants={fadeIn} className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4">
-                <Link href="/register">
-                  <Button className="h-14 px-8 text-lg bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-2xl shadow-emerald-200 transition-all hover:scale-105 group">
-                    Launch Your Store
-                    <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </Link>
-                <a href="#jaaniye">
-                  <Button variant="outline" className="h-14 px-8 text-lg rounded-2xl border-2 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 transition-all group">
-                    <BookOpen className="mr-2 h-5 w-5 text-emerald-500" />
-                    Janiye Kaise Kaam Karta Hai
-                    <ChevronDown className="ml-2 h-4 w-4 text-slate-400 group-hover:translate-y-0.5 transition-transform" />
-                  </Button>
-                </a>
-              </motion.div>
-              <motion.div variants={fadeIn}>
-                <p className="text-sm text-slate-400 font-medium">No credit card required. 14-day free trial.</p>
-              </motion.div>
-
-              <motion.div variants={fadeIn} className="flex items-center justify-center lg:justify-start gap-6 pt-4">
-                <p className="text-xs font-bold text-slate-400 tracking-widest uppercase">Trusted by 500+ D2C Brands</p>
-                <div className="h-4 w-px bg-slate-200" />
-                <div className="flex gap-4 opacity-40 grayscale">
-                    <Smartphone className="h-5 w-5" />
-                    <Cpu className="h-5 w-5" />
-                    <Globe className="h-5 w-5" />
-                </div>
-              </motion.div>
+      <main>
+        <section className="relative isolate overflow-hidden pb-16 pt-16 sm:pb-24 sm:pt-24 lg:pb-32 lg:pt-28">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_14%_24%,rgba(167,243,208,0.5),transparent_23%),radial-gradient(circle_at_85%_20%,rgba(219,234,254,0.58),transparent_27%)]" />
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-[0.96fr_1.04fr] lg:gap-16">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }}>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
+                <Sparkles className="h-3.5 w-3.5" />
+                The WhatsApp growth platform
+              </div>
+              <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.055em] text-slate-950 sm:text-6xl lg:text-7xl lg:leading-[0.98]">
+                Turn WhatsApp chats into <span className="text-emerald-500">revenue, repeat sales, and loyal customers.</span>
+              </h1>
+              <p className="mt-7 max-w-xl text-lg leading-8 text-slate-600 sm:text-xl">
+                Wappify is the all-in-one WhatsApp platform for businesses that want to market, sell, and support from the channel customers already love.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <LandingButton href="/register">Start growing on WhatsApp <ArrowRight className="h-4 w-4" /></LandingButton>
+                <LandingButton href="#how-it-works" variant="secondary">Explore the platform <ChevronDown className="h-4 w-4" /></LandingButton>
+              </div>
+              <div className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-slate-500">
+                <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> Sell without sending shoppers elsewhere</span>
+                <span className="inline-flex items-center gap-2"><Check className="h-4 w-4 text-emerald-600" /> One view of every customer moment</span>
+              </div>
             </motion.div>
 
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="relative lg:ml-auto max-w-full overflow-hidden"
-            >
-              <div className="relative z-10 rounded-3xl overflow-hidden shadow-[0_32px_64px_-12px_rgba(0,0,0,0.15)] border-8 border-white bg-white">
-                <img 
-                  src="/assets/hero.png" 
-                  alt="Wappify WhatsApp Interface" 
-                  className="w-full h-auto aspect-square object-cover"
-                />
+            <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.55, delay: 0.08 }} className="relative mx-auto w-full max-w-[620px]">
+              <div className="absolute -inset-7 -z-10 rounded-[2.5rem] bg-emerald-200/35 blur-3xl" />
+              <div className="overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-2.5 shadow-[0_32px_80px_-28px_rgba(15,23,42,0.32)] sm:rounded-[2.25rem] sm:p-3">
+                <Image src="/assets/hero.png" alt="A WhatsApp shopping conversation powered by Wappify" width={1024} height={1024} priority className="aspect-square w-full rounded-[1.35rem] object-cover sm:rounded-[1.8rem]" />
               </div>
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-emerald-400/20 rounded-full blur-3xl -z-10" />
-              <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-blue-400/20 rounded-full blur-3xl -z-10" />
+              <div className="absolute -bottom-5 -left-3 hidden max-w-[210px] rounded-2xl border border-slate-100 bg-white p-4 shadow-xl shadow-slate-200/70 sm:block">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">One workspace</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">Campaigns, conversations, orders, and automation—connected.</p>
+              </div>
             </motion.div>
           </div>
-        </div>
-      </header>
+        </section>
 
-      {/* ── Features Section ──────────────── */}
-      <section id="features" className="py-24 bg-slate-50 scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-3xl mx-auto mb-20 space-y-4">
-            <h2 className="text-sm font-bold text-emerald-600 uppercase tracking-[0.2em]">The Future of Commerce</h2>
-            <h3 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-              Everything you need to sell <br /> where your customers are.
-            </h3>
+        <section className="border-y border-slate-200/80 bg-white py-5">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-5 text-center text-sm font-medium text-slate-500 sm:justify-between sm:px-8">
+            <span className="inline-flex items-center gap-2"><MessageSquareMore className="h-4 w-4 text-emerald-600" /> Market in the channel customers open first</span>
+            <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Personal service at every scale</span>
+            <span className="inline-flex items-center gap-2"><ShoppingBag className="h-4 w-4 text-emerald-600" /> Make every chat shoppable</span>
           </div>
+        </section>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                title: "AI-Powered Support",
-                desc: "Integrated Gemini AI handles customer queries, product recommendations, and FAQs 24/7.",
-                icon: Cpu,
-                bg: "bg-emerald-50 text-emerald-600"
-              },
-              {
-                title: "Smart Catalogs",
-                desc: "Sync your inventory and present your products in a beautiful, shoppable WhatsApp catalog.",
-                icon: ShoppingBag,
-                bg: "bg-blue-50 text-blue-600"
-              },
-              {
-                title: "Bulk Broadcasts",
-                desc: "Send high-converting marketing campaigns with segmented customer targets and 98% open rates.",
-                icon: Zap,
-                bg: "bg-purple-50 text-purple-600"
-              },
-              {
-                title: "One-Tap Payments",
-                desc: "Native Razorpay integration allows customers to pay directly within the WhatsApp chat flow.",
-                icon: ShieldCheck,
-                bg: "bg-orange-50 text-orange-600"
-              },
-              {
-                title: "Advanced Analytics",
-                desc: "Track every click, conversion, and rupee earned with our high-fidelity dashboard.",
-                icon: TrendingUp,
-                bg: "bg-pink-50 text-pink-600"
-              },
-              {
-                title: "Global Scalability",
-                desc: "Sell across borders with multi-currency support and localized WhatsApp Cloud API nodes.",
-                icon: Globe,
-                bg: "bg-cyan-50 text-cyan-600"
-              }
-            ].map((feature, i) => (
-              <motion.div 
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="group relative p-8 bg-white rounded-3xl border border-slate-100 hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300"
-              >
-                <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300", feature.bg)}>
-                  <feature.icon className="h-6 w-6" />
-                </div>
-                <h4 className="text-xl font-bold text-slate-900 mb-3">{feature.title}</h4>
-                <p className="text-slate-500 leading-relaxed font-medium">{feature.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Hinglish Explainer Section ──────── */}
-      <section id="jaaniye" className="py-24 scroll-mt-16 relative overflow-hidden">
-        {/* Background decorations */}
-        <div className="absolute top-0 left-0 w-full h-full -z-10">
-          <div className="absolute top-[10%] right-[-5%] w-[30%] h-[30%] bg-emerald-50 rounded-full blur-[100px] opacity-50" />
-          <div className="absolute bottom-[10%] left-[-5%] w-[25%] h-[25%] bg-amber-50 rounded-full blur-[100px] opacity-50" />
-        </div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Section Header */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center max-w-3xl mx-auto mb-20 space-y-5"
-          >
-            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-50 text-amber-700 text-xs font-bold uppercase tracking-wider rounded-full border border-amber-100">
-              <Star className="h-3 w-3 fill-current" />
-              Product Explained in Hinglish
-            </span>
-            <h3 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-              Wappify Kya Hai Aur <br /><span className="text-emerald-500">Yeh Kaise Kaam Karta Hai?</span>
-            </h3>
-            <p className="text-xl text-slate-500 font-medium leading-relaxed">
-              Ek baar samajh lo, phir aap khud bologe — &ldquo;Yeh toh chahiye tha!&rdquo;
-            </p>
-          </motion.div>
-
-          {/* What is Wappify - Big Explainer Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-[2.5rem] p-10 lg:p-16 mb-12 relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-[50%] h-[50%] bg-emerald-500/10 blur-[100px] -z-0" />
-            <div className="absolute bottom-0 left-0 w-[30%] h-[30%] bg-blue-500/10 blur-[100px] -z-0" />
-            
-            <div className="relative z-10 space-y-8">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center">
-                  <Rocket className="h-6 w-6 text-emerald-400" />
-                </div>
-                <h4 className="text-3xl font-extrabold text-white">Wappify Kya Hai?</h4>
-              </div>
-              
-              <div className="grid lg:grid-cols-2 gap-10">
-                <div className="space-y-6">
-                  <p className="text-slate-300 text-lg leading-relaxed font-medium">
-                    Socho aapka ek <span className="text-emerald-400 font-bold">WhatsApp number</span> hai jahan se aap apna business chalate ho. Ab socho ki woh WhatsApp number itna smart ho jaye ki woh <span className="text-emerald-400 font-bold">khud se customers se baat kare, unhe products dikhaye, aur payment bhi le le</span> — bina aapko phone uthaye.
-                  </p>
-                  <p className="text-slate-300 text-lg leading-relaxed font-medium">
-                    <span className="text-white font-bold">Yahi hai Wappify!</span> Ek AI-powered platform jo aapke WhatsApp ko ek <span className="text-amber-400 font-bold">full automatic dukaan</span> bana deta hai. Customer message kare, AI usse baat kare, product recommend kare, aur payment link bhej de. Aapko sirf dashboard pe order dekhna hai! 😎
-                  </p>
-                </div>
-                <div className="space-y-6">
-                  <p className="text-slate-300 text-lg leading-relaxed font-medium">
-                    Chahe aap <span className="text-white font-bold">clothes becho, jewelry, electronics, food, ya koi bhi service</span> — Wappify har business ke liye kaam karta hai. Bas apna WhatsApp connect karo, products add karo, aur AI ko kaam pe lagao! 🚀
-                  </p>
-                  <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mb-3">Simple formula</p>
-                    <p className="text-2xl font-extrabold text-white">
-                      WhatsApp + AI + Payments = <span className="text-emerald-400">Wappify</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
+        <section id="product" className="scroll-mt-24 py-20 sm:py-28">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="mx-auto max-w-2xl text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-600">Built for every customer moment</p>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">Your WhatsApp business, finally in one place.</h2>
+              <p className="mt-5 text-lg leading-8 text-slate-600">From a product question to a repeat purchase, Wappify gives your team the tools to create a better buying journey.</p>
             </div>
-          </motion.div>
-
-          {/* How It Works - Step by Step */}
-          <div className="mb-16">
-            <motion.h4
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-3xl font-extrabold text-center mb-12"
-            >
-              Kaise Kaam Karta Hai? <span className="text-emerald-500">4 Simple Steps</span>
-            </motion.h4>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {[
-                {
-                  step: "01",
-                  title: "Sign Up Karo",
-                  desc: "Bas apna email aur WhatsApp number dalo. 2 minute mein account ready. Koi coding nahi, koi technical gyaan nahi chahiye.",
-                  icon: Users,
-                  color: "emerald"
-                },
-                {
-                  step: "02",
-                  title: "Products Add Karo",
-                  desc: "Dashboard pe jaake apne products ya services add karo — naam, photo, price. Jaise Instagram pe post karte ho, utna aasan.",
-                  icon: ShoppingBag,
-                  color: "blue"
-                },
-                {
-                  step: "03",
-                  title: "AI Ko Train Karo",
-                  desc: "Apne business ke baare mein AI ko batao — woh sab seekh lega. Phir customers ke sawalon ka jawab khud dega, 24x7.",
-                  icon: Bot,
-                  color: "purple"
-                },
-                {
-                  step: "04",
-                  title: "Paisa Kamao! 💰",
-                  desc: "Customer WhatsApp pe message kare, AI baat kare, product dikhaye, payment link bheje — aur order aa jaye. Automatic!",
-                  icon: IndianRupee,
-                  color: "amber"
-                }
-              ].map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                  className="relative group"
-                >
-                  <div className="bg-white rounded-3xl border border-slate-100 p-8 h-full hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300 hover:-translate-y-1">
-                    <span className={cn(
-                      "text-6xl font-black opacity-10 absolute top-4 right-6",
-                      item.color === "emerald" && "text-emerald-500",
-                      item.color === "blue" && "text-blue-500",
-                      item.color === "purple" && "text-purple-500",
-                      item.color === "amber" && "text-amber-500"
-                    )}>{item.step}</span>
-                    <div className={cn(
-                      "w-12 h-12 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform",
-                      item.color === "emerald" && "bg-emerald-50 text-emerald-600",
-                      item.color === "blue" && "bg-blue-50 text-blue-600",
-                      item.color === "purple" && "bg-purple-50 text-purple-600",
-                      item.color === "amber" && "bg-amber-50 text-amber-600"
-                    )}>
-                      <item.icon className="h-6 w-6" />
+            <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {modules.map((module, index) => {
+                const Icon = module.icon;
+                return (
+                  <motion.article key={module.title} initial={{ opacity: 0, y: 12 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.2 }} transition={{ duration: 0.3, delay: index * 0.035 }} className="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-slate-300 hover:shadow-xl hover:shadow-slate-200/60">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-white ${module.tone}`}><Icon className="h-5 w-5" /></div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">{module.status}</span>
                     </div>
-                    <h5 className="text-xl font-bold mb-3">{item.title}</h5>
-                    <p className="text-slate-500 font-medium leading-relaxed">{item.desc}</p>
-                  </div>
-                </motion.div>
-              ))}
+                    <h3 className="mt-8 text-lg font-semibold tracking-tight text-slate-950">{module.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">{module.description}</p>
+                  </motion.article>
+                );
+              })}
             </div>
           </div>
+        </section>
 
-          {/* Why Wappify is Important */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-emerald-50 rounded-[2.5rem] p-10 lg:p-16 mb-12 border border-emerald-100"
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
-                <HeartHandshake className="h-6 w-6 text-emerald-600" />
+        <section id="how-it-works" className="scroll-mt-24 bg-slate-950 py-20 text-white sm:py-28">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-400">Simple by design</p>
+                <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">Your customers keep chatting. You keep growing.</h2>
+                <p className="mt-6 max-w-md text-lg leading-8 text-slate-300">Wappify puts your sales, marketing, and service tools behind WhatsApp, so every reply can lead somewhere valuable.</p>
+                <div className="mt-8"><LandingButton href="/register">Get started <ArrowRight className="h-4 w-4" /></LandingButton></div>
               </div>
-              <h4 className="text-3xl font-extrabold text-slate-900">Yeh Zaroori Kyun Hai?</h4>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-8">
-              {[
-                {
-                  title: "WhatsApp pe 500 Million+ Indians hai",
-                  desc: "Aapke customers already WhatsApp pe hai. Instagram pe ad dene se acha, seedha unke WhatsApp pe pahuncho. Open rate 98% hota hai — email ka sirf 20% hota hai!"
-                },
-                {
-                  title: "Manual replies se time waste hota hai",
-                  desc: "Roz 100+ messages ka reply karna mushkil hai. AI yeh kaam 24x7 karta hai — aap so jao, AI bechta rahe. Time bachao, revenue badhao."
-                },
-                {
-                  title: "Customer experience game-changer hai",
-                  desc: "Jab customer ko turant reply mile, product photos mile, aur payment link mile — woh khareedta hai. Delay hua toh woh competitor pe chala gaya."
-                },
-                {
-                  title: "Small business ka digital dukaan",
-                  desc: "Website banana mehenga hai, app banana aur mehenga. WhatsApp pe dukaan? Bilkul free-like feel. Aur customer ko koi naya app download bhi nahi karna."
-                }
-              ].map((item, i) => (
-                <div key={i} className="bg-white rounded-2xl p-8 shadow-sm border border-emerald-100/50">
-                  <h5 className="text-lg font-bold text-slate-900 mb-3">{item.title}</h5>
-                  <p className="text-slate-600 font-medium leading-relaxed">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Benefits - What You Get */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <h4 className="text-3xl font-extrabold text-center mb-4">
-              Wappify Use Karne Se <span className="text-emerald-500">Kya Milega?</span>
-            </h4>
-            <p className="text-center text-slate-500 font-medium mb-12 text-lg">
-              Yeh sirf ek tool nahi, yeh aapka <span className="font-bold text-slate-700">digital salesman</span> hai jo kabhi thakta nahi.
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-6">
-              {[
-                {
-                  emoji: "🤖",
-                  title: "24x7 AI Sales Assistant",
-                  desc: "Raat ko 2 baje bhi customer aaye toh AI baat karega, product recommend karega, aur order le lega. Aap tension-free so jao.",
-                  highlight: "Sleep while AI sells!"
-                },
-                {
-                  emoji: "📢",
-                  title: "Bulk WhatsApp Broadcasts",
-                  desc: "Ek click mein 1000+ customers ko message bhejo — new product launch, sale, ya festival offer. 98% log padhte hai!",
-                  highlight: "98% open rate!"
-                },
-                {
-                  emoji: "💳",
-                  title: "Instant Payment Collection",
-                  desc: "Chat ke andar hi Razorpay payment link. Customer ko kahin aur jaane ki zaroorat nahi. UPI, cards, net banking — sab chalega.",
-                  highlight: "In-chat payments!"
-                },
-                {
-                  emoji: "📊",
-                  title: "Full Analytics Dashboard",
-                  desc: "Kitne orders aaye, kitna revenue hua, konsa product best sell ho raha — sab ek dashboard pe. Data-driven decisions lo.",
-                  highlight: "Real-time insights!"
-                },
-                {
-                  emoji: "🛍️",
-                  title: "Product Catalog Management",
-                  desc: "Products add karo, stock manage karo, prices update karo — sab dashboard se. Customer ko always latest catalog dikhe.",
-                  highlight: "Easy inventory!"
-                },
-                {
-                  emoji: "⚡",
-                  title: "Zero Technical Knowledge",
-                  desc: "Koi coding nahi, koi website banana nahi, koi app development nahi. Bas sign up karo aur shuru ho jao. Itna aasan hai!",
-                  highlight: "No coding needed!"
-                }
-              ].map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.08 }}
-                  className="bg-white rounded-3xl border border-slate-100 p-8 hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-300 group"
-                >
-                  <span className="text-4xl block mb-4">{item.emoji}</span>
-                  <h5 className="text-xl font-bold text-slate-900 mb-2">{item.title}</h5>
-                  <p className="text-slate-500 font-medium leading-relaxed mb-4">{item.desc}</p>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {item.highlight}
-                  </span>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Who Can Use - Industries */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="bg-slate-50 rounded-[2.5rem] p-10 lg:p-16 border border-slate-100"
-          >
-            <h4 className="text-3xl font-extrabold text-center mb-4">
-              Kaun Kaun Use Kar Sakta Hai?
-            </h4>
-            <p className="text-center text-slate-500 font-medium mb-12 text-lg">
-              Sirf e-commerce nahi — <span className="font-bold text-slate-700">har woh business</span> jahan customers WhatsApp pe baat karte hai!
-            </p>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {[
-                { emoji: "👗", label: "Fashion & Clothing" },
-                { emoji: "💎", label: "Jewelry Business" },
-                { emoji: "🍕", label: "Food & Restaurant" },
-                { emoji: "🏥", label: "Clinics & Doctors" },
-                { emoji: "🎓", label: "Coaching & EdTech" },
-                { emoji: "💇", label: "Salons & Beauty" },
-                { emoji: "🏋️", label: "Gyms & Fitness" },
-                { emoji: "🏠", label: "Real Estate" },
-                { emoji: "🔧", label: "Home Services" },
-                { emoji: "📱", label: "Electronics" },
-                { emoji: "🎉", label: "Event Management" },
-                { emoji: "🌿", label: "Grocery & Organic" }
-              ].map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  whileInView={{ opacity: 1, scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05 }}
-                  className="bg-white rounded-2xl border border-slate-100 p-5 text-center hover:shadow-lg hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1 cursor-default"
-                >
-                  <span className="text-3xl block mb-2">{item.emoji}</span>
-                  <p className="text-sm font-bold text-slate-700">{item.label}</p>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* CTA */}
-            <div className="text-center mt-12">
-              <Link href="/register">
-                <Button className="h-14 px-10 text-lg bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl shadow-2xl shadow-emerald-200 transition-all hover:scale-105 group">
-                  Abhi Free Trial Shuru Karo
-                  <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <p className="text-sm text-slate-400 font-medium mt-4">14 din ka free trial. Koi credit card nahi chahiye.</p>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ── Demo/Dashboard Section ────────── */}
-      <section id="demo" className="py-24 overflow-hidden scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-slate-900 rounded-[3rem] px-8 py-20 lg:p-20 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[60%] h-full bg-emerald-500/10 blur-[150px] -z-0" />
-            
-            <div className="grid lg:grid-cols-2 gap-16 items-center relative z-10">
-              <div className="space-y-8">
-                <h2 className="text-4xl lg:text-5xl font-extrabold text-white leading-tight">
-                  Powerful Insights at <br /> your fingertips.
-                </h2>
-                <p className="text-slate-400 text-lg leading-relaxed font-medium">
-                  Managing a store shouldn&apos;t be hard. Our unified dashboard gives you a birds-eye view of your growth, performance, and customer engagement.
-                </p>
-                <ul className="space-y-4">
-                  {[
-                    "Real-time revenue tracking",
-                    "Customer interaction heatmaps",
-                    "Broadcast ROI analytics",
-                    "Automated stock alerts"
-                  ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-3 text-white font-medium">
-                      <CheckCircle2 className="h-5 w-5 text-emerald-400 fill-emerald-400/10" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-                <Button className="h-12 px-8 bg-white text-slate-900 hover:bg-slate-100 rounded-2xl font-bold">
-                    View Live Preview
-                </Button>
-              </div>
-              
-              <motion.div 
-                initial={{ x: 100, opacity: 0 }}
-                whileInView={{ x: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                className="relative"
-              >
-                <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-slate-800">
-                  <img 
-                    src="/assets/dashboard.png" 
-                    alt="Wappify Dashboard Mockup" 
-                    className="w-full h-auto aspect-[4/3] object-cover"
-                  />
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Pricing Section ───────────────── */}
-      <section id="pricing" className="py-24 scroll-mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-center">
-            <h2 className="text-4xl font-extrabold mb-4">Simple, Transparent Pricing</h2>
-            <p className="text-slate-500 mb-16 text-lg font-medium">Scales with your business, from MVP to Enterprise.</p>
-            
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto text-left">
-                {[
-                    { name: "Starter", price: "₹2,499", desc: "For emerging D2C brands.", features: ["500 Monthly Broadcasts", "Basic AI Logic", "2 Product Catalogs", "Standard Support"] },
-                    { name: "Pro", price: "₹5,999", desc: "For scaling retailers.", featured: true, features: ["Unlimited Broadcasts", "Gemini 1.5 Pro AI", "Unlimited Catalogs", "Priority Support", "Advanced Analytics"] },
-                    { name: "Enterprise", price: "Custom", desc: "For large organizations.", features: ["Dedicated Account Manager", "Custom AI Training", "API Access", "SLA Guarantees", "Whitelabeling"] }
-                ].map((tier, i) => (
-                    <div key={i} className={cn(
-                        "p-8 rounded-[2rem] border transition-all duration-300 flex flex-col",
-                        tier.featured ? "bg-slate-900 text-white border-slate-900 shadow-2xl shadow-blue-200 scale-105 z-10" : "bg-white text-slate-900 border-slate-100 hover:border-emerald-200"
-                    )}>
-                        <h4 className="text-xl font-bold mb-2">{tier.name}</h4>
-                        <p className={cn("text-sm mb-6 font-medium", tier.featured ? "text-slate-400" : "text-slate-500")}>{tier.desc}</p>
-                        <div className="flex items-baseline gap-1 mb-8">
-                            <span className="text-4xl font-extrabold">{tier.price}</span>
-                            <span className="text-sm opacity-60">/month</span>
-                        </div>
-                        <ul className="space-y-4 mb-8 flex-1 text-sm font-medium">
-                            {tier.features.map((f, j) => (
-                                <li key={j} className="flex items-center gap-3">
-                                    <CheckCircle2 className={cn("h-4 w-4", tier.featured ? "text-emerald-400" : "text-emerald-600")} />
-                                    {f}
-                                </li>
-                            ))}
-                        </ul>
-                        <Link href="/register" className="w-full">
-                            <Button className={cn(
-                                "w-full h-12 rounded-2xl font-bold",
-                                tier.featured ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-900"
-                            )}>
-                                Get Started
-                            </Button>
-                        </Link>
+              <div className="grid gap-4 sm:grid-cols-3">
+                {steps.map((step) => {
+                  const Icon = step.icon;
+                  return (
+                    <div key={step.number} className="rounded-2xl border border-white/10 bg-white/[0.06] p-6">
+                      <div className="flex items-center justify-between"><Icon className="h-5 w-5 text-emerald-400" /><span className="text-xs font-bold tracking-widest text-slate-500">{step.number}</span></div>
+                      <h3 className="mt-12 text-lg font-semibold">{step.title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-300">{step.description}</p>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="py-20 sm:py-28">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-5 sm:px-8 lg:grid-cols-2 lg:gap-20">
+            <div className="order-2 lg:order-1">
+              <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-slate-100 p-2 shadow-[0_24px_70px_-32px_rgba(15,23,42,0.35)]">
+                <Image src="/assets/dashboard.png" alt="Wappify WhatsApp growth workspace dashboard" width={1024} height={1024} className="aspect-square w-full rounded-[1.35rem] object-cover" />
+              </div>
+            </div>
+            <div className="order-1 lg:order-2">
+              <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-600">A clearer way to grow</p>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">Less tool-hopping. More conversations that convert.</h2>
+              <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">Give marketing, sales, and service one shared command centre—with every conversation, customer detail, and order within reach.</p>
+              <ul className="mt-8 space-y-4">
+                {["One shared home for marketing, sales, and support", "Live customer and order context in every chat", "Campaigns and automations built around conversion"].map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm font-semibold text-slate-700"><span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><Check className="h-3.5 w-3.5" /></span>{item}</li>
                 ))}
+              </ul>
             </div>
-        </div>
-      </section>
+          </div>
+        </section>
 
-      {/* ── Footer ────────────────────────── */}
-      <footer className="bg-slate-50 border-t border-slate-100 pt-20 pb-10 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="grid md:grid-cols-4 gap-12 mb-16">
-                <div className="space-y-6">
-                    <a href="#" className="flex items-center gap-2.5">
-                        <img src="/logo.svg" alt="Wappify Logo" className="w-9 h-9 rounded-xl shrink-0" />
-                        <span className="text-xl font-bold tracking-tight">Wappify</span>
-                    </a>
-                    <p className="text-sm text-slate-500 leading-relaxed font-semibold">
-                        Empowering D2C brands with AI-driven commerce. Built for the modern seller.
-                    </p>
+        <section id="pricing" className="scroll-mt-24 border-y border-slate-200 bg-white py-20 sm:py-28">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8">
+            <div className="mx-auto max-w-2xl text-center"><p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-600">Plans for every stage</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">Start selling. Scale your conversations.</h2><p className="mt-5 text-lg leading-8 text-slate-600">Choose the plan that fits your current volume, then grow without changing platforms.</p></div>
+            <div className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
+              {[
+                { name: "Starter", price: "₹2,499", note: "For businesses ready to start selling on WhatsApp.", features: ["Product catalogue and orders", "Shared team inbox", "Essential automations"] },
+                { name: "Growth", price: "₹5,999", note: "For teams ready to turn chats into a growth engine.", features: ["Everything in Starter", "Broadcasts and AI workflows", "Campaign performance insights"], featured: true },
+                { name: "Scale", price: "Let’s talk", note: "For high-volume teams with advanced needs.", features: ["Tailored platform plan", "Guided onboarding", "Priority success support"] },
+              ].map((plan) => (
+                <div key={plan.name} className={`flex flex-col rounded-2xl border p-7 ${plan.featured ? "border-slate-950 bg-slate-950 text-white shadow-2xl shadow-slate-300" : "border-slate-200 bg-[#fcfdfb] text-slate-950"}`}>
+                  {plan.featured && <span className="mb-5 w-fit rounded-full bg-emerald-400 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-950">Most popular</span>}
+                  <h3 className="text-xl font-semibold">{plan.name}</h3><p className={`mt-2 text-sm leading-6 ${plan.featured ? "text-slate-300" : "text-slate-600"}`}>{plan.note}</p>
+                  <p className="mt-7 text-3xl font-semibold tracking-tight">{plan.price}{plan.price.startsWith("₹") && <span className="ml-1 text-sm font-medium opacity-60">/ month</span>}</p>
+                  <ul className="mt-7 flex-1 space-y-3">{plan.features.map((feature) => <li key={feature} className={`flex gap-2 text-sm ${plan.featured ? "text-slate-200" : "text-slate-700"}`}><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />{feature}</li>)}</ul>
+                  <Link href="/register" className={`mt-8 inline-flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-colors ${plan.featured ? "bg-emerald-400 text-emerald-950 hover:bg-emerald-300" : "bg-slate-900 text-white hover:bg-slate-800"}`}>{plan.name === "Scale" ? "Contact us" : "Get started"}</Link>
                 </div>
-                <div>
-                    <h5 className="font-bold text-slate-900 mb-6 uppercase text-xs tracking-widest">Product</h5>
-                    <ul className="space-y-4 text-sm text-slate-500 font-bold">
-                        <li><a href="#features" className="hover:text-emerald-600 transition-colors">Features</a></li>
-                        <li><a href="#pricing" className="hover:text-emerald-600 transition-colors">Pricing</a></li>
-                        <li><a href="#demo" className="hover:text-emerald-600 transition-colors">How it works</a></li>
-                        <li><Link href="/register" className="hover:text-emerald-600 transition-colors">Get Started</Link></li>
-                    </ul>
-                </div>
-                <div>
-                    <h5 className="font-bold text-slate-900 mb-6 uppercase text-xs tracking-widest">Company</h5>
-                    <ul className="space-y-4 text-sm text-slate-500 font-bold">
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">About Us</a></li>
-                        <li><Link href="/blog" className="hover:text-emerald-600 transition-colors">Blog</Link></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Careers</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Legal</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h5 className="font-bold text-slate-900 mb-6 uppercase text-xs tracking-widest">Support</h5>
-                    <ul className="space-y-4 text-sm text-slate-500 font-bold">
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Help Center</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">API Docs</a></li>
-                        <li><a href="#" className="hover:text-emerald-600 transition-colors">Status</a></li>
-                        <li><a href="mailto:gauhar54995@gmail.com" className="hover:text-emerald-600 transition-colors">Contact</a></li>
-                    </ul>
-                </div>
+              ))}
             </div>
-            
-            <div className="flex flex-col md:flex-row items-center justify-between pt-10 border-t border-slate-200 gap-4">
-                <p className="text-xs text-slate-400 font-extrabold tracking-tight">
-                    &copy; 2026 Wappify Technology Solutions. All rights reserved.
-                </p>
-                <div className="flex gap-6 grayscale opacity-40">
-                    <Smartphone className="h-5 w-5" />
-                    <Cpu className="h-5 w-5" />
-                    <Globe className="h-5 w-5" />
-                </div>
-            </div>
-        </div>
-      </footer>
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-24 py-20 sm:py-28">
+          <div className="mx-auto grid max-w-7xl gap-12 px-5 sm:px-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20"><div><p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-600">Frequently asked questions</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-slate-950 sm:text-5xl">A growth platform should be easy to understand.</h2><p className="mt-6 text-lg leading-8 text-slate-600">Still deciding whether Wappify fits your business? Start here.</p></div><div className="divide-y divide-slate-200 rounded-2xl border border-slate-200 bg-white px-6">{faqs.map((faq, index) => <div key={faq.question} className="py-5"><button type="button" onClick={() => setOpenFaq(openFaq === index ? -1 : index)} className="flex w-full items-center justify-between gap-5 text-left text-base font-semibold text-slate-900"><span>{faq.question}</span><ChevronDown className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${openFaq === index ? "rotate-180" : ""}`} /></button>{openFaq === index && <p className="pr-8 pt-3 text-sm leading-6 text-slate-600">{faq.answer}</p>}</div>)}</div></div>
+        </section>
+
+        <section className="pb-20 sm:pb-28"><div className="mx-auto max-w-7xl px-5 sm:px-8"><div className="relative overflow-hidden rounded-[2rem] bg-emerald-500 px-7 py-12 text-center sm:px-12 sm:py-16"><div className="absolute -left-20 top-0 h-56 w-56 rounded-full bg-white/15 blur-2xl" /><div className="absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-slate-950/10 blur-2xl" /><div className="relative mx-auto max-w-2xl"><p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-950/70">Ready when you are</p><h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">Make WhatsApp your best growth channel.</h2><p className="mt-5 text-lg leading-8 text-emerald-50">Bring marketing, selling, and customer care together in Wappify—then turn every chat into momentum.</p><div className="mt-8"><LandingButton href="/register" variant="dark">Start selling on WhatsApp <ArrowRight className="h-4 w-4" /></LandingButton></div></div></div></div></section>
+      </main>
+
+      <footer className="border-t border-slate-200 bg-white"><div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8"><div className="flex items-center gap-2.5"><Image src="/logo.svg" alt="" width={32} height={32} className="h-8 w-8" /><span className="text-sm font-semibold text-slate-900">Wappify</span></div><div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-500"><Link href="/blog" className="hover:text-slate-900">Blog</Link><a href="mailto:gauhar54995@gmail.com" className="hover:text-slate-900">Contact</a><a href="#faq" className="hover:text-slate-900">Help</a></div><p className="text-xs text-slate-400">© 2026 Wappify. All rights reserved.</p></div></footer>
     </div>
   );
 }

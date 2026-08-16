@@ -166,16 +166,7 @@ export const generateAIResponse = async (
       },
     });
 
-    console.log("[GEMINI] Sending message to Gemini Flash:", userMessage);
-    console.log(
-      "[GEMINI] Conversation history length:",
-      conversationHistory.length,
-    );
-    console.log(
-      "[GEMINI] Merchant context:",
-      contextData.merchantName,
-      `(${contextData.products.length} products)`,
-    );
+    console.log(`[GEMINI] Generating response with ${conversationHistory.length} history items and ${contextData.products.length} catalog products.`);
 
     const chat = model.startChat({
       history: conversationHistory,
@@ -193,7 +184,7 @@ export const generateAIResponse = async (
       return "Mujhe samajh nahi aaya! 😅 Kya aap dobara pooch sakte hain? Aap *1* type karein catalog dekhne ke liye ya apna sawaal aur clearly poochein!";
     }
 
-    console.log(`[GEMINI] Response received successfully (${tokenCount} tokens):`, text);
+    console.log(`[GEMINI] Response generated successfully (${tokenCount} tokens).`);
 
     // Track usage in the database asynchronously
     if (orgId && tokenCount > 0) {

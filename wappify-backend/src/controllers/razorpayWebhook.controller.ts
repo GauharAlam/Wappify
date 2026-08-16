@@ -14,9 +14,11 @@ const verifyRazorpaySignature = (rawBody: Buffer, signature: string): boolean =>
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
   if (!secret) {
-    console.warn(
-      "[RAZORPAY WEBHOOK] ⚠️  RAZORPAY_WEBHOOK_SECRET is not set — skipping signature check (dev mode only)"
-    );
+    if (process.env.NODE_ENV === "production") {
+      console.error("[RAZORPAY WEBHOOK] RAZORPAY_WEBHOOK_SECRET is missing in production.");
+      return false;
+    }
+    console.warn("[RAZORPAY WEBHOOK] Signature verification is disabled outside production.");
     return true;
   }
 
@@ -30,14 +32,12 @@ const verifyRazorpaySignature = (rawBody: Buffer, signature: string): boolean =>
     .update(rawBody)
     .digest("hex");
 
-  const isValid = expectedSignature === signature;
+  const expectedBuffer = Buffer.from(expectedSignature);
+  const receivedBuffer = Buffer.from(signature);
+  const isValid = expectedBuffer.length === receivedBuffer.length && crypto.timingSafeEqual(expectedBuffer, receivedBuffer);
 
   if (!isValid) {
     console.warn("[RAZORPAY WEBHOOK] ❌ Signature mismatch — possible spoofed request");
-    console.warn("[RAZORPAY WEBHOOK] Expected :", expectedSignature);
-    console.warn("[RAZORPAY WEBHOOK] Received :", signature);
-  } else {
-    console.log("[RAZORPAY WEBHOOK] ✅ Signature verified successfully");
   }
 
   return isValid;
@@ -53,10 +53,6 @@ export const receiveRazorpayWebhook = async (
 ): Promise<void> => {
   const signature = req.header("x-razorpay-signature") || "";
   const rawBody = req.body as Buffer;
-
-  console.log("\n================ RAZORPAY WEBHOOK RECEIVED ================");
-  console.log("[RAZORPAY WEBHOOK] Timestamp :", new Date().toISOString());
-  console.log("[RAZORPAY WEBHOOK] Signature :", signature || "N/A");
 
   // ── Step 1: Verify signature ──────────────────────────────
   if (!verifyRazorpaySignature(rawBody, signature)) {
@@ -74,13 +70,7 @@ export const receiveRazorpayWebhook = async (
     return;
   }
 
-  console.log("[RAZORPAY WEBHOOK] Event Type :", event?.event || "unknown");
-  console.log("[RAZORPAY WEBHOOK] Account ID :", event?.account_id || "N/A");
-  console.log(
-    "[RAZORPAY WEBHOOK] Payload    :\n",
-    JSON.stringify(event?.payload, null, 2)
-  );
-  console.log("==========================================================\n");
+  console.log(`[RAZORPAY WEBHOOK] Received ${event?.event || "unknown"}.`);
 
   // ── Step 3: Acknowledge immediately (200) ─────────────────
   // Razorpay will retry for up to 24 hours if it doesn't get a 200.
@@ -103,14 +93,6 @@ export const receiveRazorpayWebhook = async (
         const currency: string = paymentEntity?.currency || "INR";
         const method: string = paymentEntity?.method || "N/A";
 
-        console.log("[RAZORPAY WEBHOOK] Payment Link ID :", razorpayPaymentLinkId);
-        console.log("[RAZORPAY WEBHOOK] Payment ID      :", razorpayPaymentId);
-        console.log(
-          "[RAZORPAY WEBHOOK] Amount Paid     :",
-          `₹${amountPaidPaise / 100} ${currency}`
-        );
-        console.log("[RAZORPAY WEBHOOK] Payment Method  :", method);
-
         if (!razorpayPaymentLinkId || !razorpayPaymentId) {
           console.warn(
             "[RAZORPAY WEBHOOK] Missing payment link ID or payment ID — cannot process"
@@ -126,7 +108,7 @@ export const receiveRazorpayWebhook = async (
 
         if (!updatedOrder) {
           console.warn(
-            `[RAZORPAY WEBHOOK] No matching order found for payment link: ${razorpayPaymentLinkId}`
+          "[RAZORPAY WEBHOOK] No matching order found for a payment link."
           );
           break;
         }
@@ -170,7 +152,7 @@ export const receiveRazorpayWebhook = async (
         await sendTextMessage(updatedOrder.orgId, contactWaId, confirmationMessage);
 
         console.log(
-          `[RAZORPAY WEBHOOK] ✅ Confirmation message sent to contact: ${contactWaId}`
+          "[RAZORPAY WEBHOOK] Payment confirmation sent."
         );
         break;
       }

@@ -1,97 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  ShoppingCart,
-  Package,
-  Settings,
-  TrendingUp,
-  CreditCard,
-  LogOut,
-  Users,
-  ShieldAlert,
-  MessageSquare,
-  UserPlus,
-  Workflow,
-  Contact,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ChevronDown, LogOut } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 import type { OrgRole } from "@prisma/client";
-
-// ─────────────────────────────────────────────
-// Nav config
-// ─────────────────────────────────────────────
-
-const NAV_ITEMS = [
-  {
-    href: "/inbox",
-    label: "Inbox",
-    icon: MessageSquare,
-    badge: true,
-  },
-  {
-    href: "/dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    href: "/orders",
-    label: "Orders",
-    icon: ShoppingCart,
-  },
-  {
-    href: "/contacts",
-    label: "Contacts",
-    icon: Contact,
-  },
-  {
-    href: "/products",
-    label: "Products",
-    icon: Package,
-  },
-  {
-    href: "/analytics",
-    label: "Analytics",
-    icon: TrendingUp,
-  },
-  {
-    href: "/automation",
-    label: "Automation",
-    icon: Workflow,
-    minRole: "ADMIN" as OrgRole,
-  },
-  {
-    href: "/team",
-    label: "Team",
-    icon: UserPlus,
-    minRole: "ADMIN" as OrgRole,
-  },
-  {
-    href: "/billing",
-    label: "Billing",
-    icon: CreditCard,
-  },
-  {
-    href: "/settings",
-    label: "Settings",
-    icon: Settings,
-  },
-];
-
-// Role hierarchy for access control
-const ROLE_HIERARCHY: Record<OrgRole, number> = {
-  OWNER: 3,
-  ADMIN: 2,
-  AGENT: 1,
-};
-
-// ─────────────────────────────────────────────
-// Sidebar
-// ─────────────────────────────────────────────
+import { cn } from "@/lib/utils";
+import { getActiveModule, HOME_NAV, MODULES, type ModuleDefinition } from "@/modules/platform/module-config";
 
 interface SidebarProps {
   orgName: string;
@@ -99,118 +15,162 @@ interface SidebarProps {
   role: OrgRole;
 }
 
-export default function Sidebar({
-  orgName,
-  email,
-  role,
-}: SidebarProps) {
-  const pathname = usePathname();
-  const { signOut } = useClerk();
+type NavigationProps = Pick<SidebarProps, "role"> & { onNavigate?: () => void };
 
-  const userRoleLevel = ROLE_HIERARCHY[role] || 1;
+const canSeeItem = (href: string, role: OrgRole) => {
+  if (href === "/team") return role === "OWNER" || role === "ADMIN";
+  return true;
+};
+
+function GlobalNavItem({
+  href,
+  label,
+  icon: Icon,
+  active,
+  onNavigate,
+}: {
+  href: string;
+  label: string;
+  icon: ModuleDefinition["icon"];
+  active: boolean;
+  onNavigate?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      className={cn(
+        "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{label}</span>
+    </Link>
+  );
+}
+
+export function WorkspaceNavigation({ role, onNavigate }: NavigationProps) {
+  const pathname = usePathname();
+  const activeModule = getActiveModule(pathname);
+  const ActiveModuleIcon = activeModule?.icon;
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-card">
-      {/* ── Logo ────────────────────────────── */}
-      <div className="flex h-16 items-center gap-3 border-b px-6">
-        <Image src="/logo.svg" alt="Wappify Logo" width={36} height={36} className="rounded-xl shrink-0" />
-        <div className="flex flex-col leading-none">
-          <span className="text-base font-bold tracking-tight">Wappify</span>
-          <span className="text-[10px] font-medium text-muted-foreground">
-            Communication OS
-          </span>
+    <nav className="space-y-5 px-3 py-4">
+      <div>
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
+        <GlobalNavItem {...HOME_NAV} active={pathname === "/dashboard"} onNavigate={onNavigate} />
+      </div>
+
+      <div>
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Products</p>
+        <div className="space-y-0.5">
+          {MODULES.filter((module) => module.key !== "settings").map((module) => (
+            <GlobalNavItem
+              key={module.key}
+              href={module.href}
+              label={module.label}
+              icon={module.icon}
+              active={activeModule?.key === module.key}
+              onNavigate={onNavigate}
+            />
+          ))}
         </div>
       </div>
 
-      {/* ── Navigation ──────────────────────── */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {/* Section label */}
-        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Menu
-        </p>
-
-        {(() => {
-          const items = NAV_ITEMS.filter((item) => {
-            // Check role-based access
-            if (item.minRole) {
-              const requiredLevel = ROLE_HIERARCHY[item.minRole] || 0;
-              return userRoleLevel >= requiredLevel;
-            }
-            return true;
-          });
-
-          // Add admin panel for platform admins
-          if (role === "OWNER" || role === "ADMIN") {
-            // Check if user is also a platform ADMIN
-          }
-
-          return items.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-            return (
-              <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150",
-                isActive
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon
-                className={cn(
-                  "h-4 w-4 shrink-0 transition-transform duration-150 group-hover:scale-110",
-                  isActive && "scale-110"
-                )}
-              />
-              {item.label}
-
-              {/* Active pill indicator */}
-              {isActive && (
-                <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary-foreground/70" />
-              )}
-            </Link>
-            );
-          });
-        })()}
-      </nav>
-
-      {/* ── Organization badge ───────────────────── */}
-      <div className="border-t p-4 space-y-3">
-        <div className="flex items-center gap-3 rounded-lg bg-muted/50 px-3 py-2.5">
-          {/* Avatar */}
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 font-bold text-primary text-xs uppercase">
-            {orgName.substring(0, 2)}
+      {activeModule && activeModule.key !== "settings" && (
+        <div className="rounded-xl border bg-muted/30 p-2">
+          <div className="mb-1 flex items-center gap-2 px-2 py-1.5">
+            {ActiveModuleIcon && <ActiveModuleIcon className="h-3.5 w-3.5 text-muted-foreground" />}
+            <span className="text-xs font-semibold">{activeModule.label}</span>
           </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold">{orgName}</p>
-            <p className="truncate text-[10px] text-muted-foreground">
-              {email || "user@wappify.com"}
-            </p>
+          <div className="space-y-0.5">
+            {activeModule.navigation.filter((item) => canSeeItem(item.href, role)).map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={onNavigate}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors",
+                    isActive ? "bg-background font-medium text-foreground shadow-sm" : "text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                  )}
+                >
+                  <span>{item.label}</span>
+                  {item.status === "building" && <span className="text-[9px] font-medium text-muted-foreground/80">Soon</span>}
+                </Link>
+              );
+            })}
           </div>
-
-          {/* Role badge */}
-          <span className={cn(
-            "shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider",
-            role === "OWNER" && "bg-amber-100 text-amber-700",
-            role === "ADMIN" && "bg-blue-100 text-blue-700",
-            role === "AGENT" && "bg-green-100 text-green-700",
-          )}>
-            {role}
-          </span>
         </div>
+      )}
 
+      <div>
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Manage</p>
+        <GlobalNavItem
+          href="/settings"
+          label="Settings"
+          icon={MODULES.find((module) => module.key === "settings")!.icon}
+          active={activeModule?.key === "settings"}
+          onNavigate={onNavigate}
+        />
+        {activeModule?.key === "settings" && (
+          <div className="mt-1 space-y-0.5 pl-3">
+            {activeModule.navigation.filter((item) => canSeeItem(item.href, role)).map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors",
+                  pathname === item.href ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <span>{item.label}</span>
+                {item.status === "building" && <span className="text-[9px]">Soon</span>}
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export default function Sidebar({ orgName, email, role }: SidebarProps) {
+  const { signOut } = useClerk();
+
+  return (
+    <aside className="hidden h-screen w-[272px] shrink-0 flex-col border-r bg-card lg:flex">
+      <div className="flex h-16 items-center justify-between border-b px-5">
+        <Link href="/dashboard" className="flex items-center gap-2.5">
+          <Image src="/logo.svg" alt="Wappify" width={32} height={32} className="shrink-0 rounded-lg" />
+          <span className="text-base font-semibold tracking-tight">Wappify</span>
+        </Link>
+        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <WorkspaceNavigation role={role} />
+      </div>
+
+      <div className="border-t p-3">
+        <div className="mb-2 flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+            {orgName.substring(0, 2).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold">{orgName}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{email || "Current workspace"}</p>
+          </div>
+        </div>
         <button
           onClick={() => signOut({ redirectUrl: "/login" })}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
         >
-          <LogOut className="h-4 w-4" />
-          Sign Out
+          <LogOut className="h-3.5 w-3.5" />
+          Sign out
         </button>
       </div>
     </aside>

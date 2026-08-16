@@ -9,6 +9,8 @@ import rateLimit from "express-rate-limit";
 import whatsappRoutes from "./routes/whatsapp.routes";
 import razorpayRoutes from "./routes/razorpay.routes";
 import { ensureSeedData } from "./lib/seed";
+import { prisma } from "./lib/prisma";
+import { redis } from "./lib/redis";
 import { runQueueProcessor } from "./services/queueProcessor.service";
 
 const app = express();
@@ -23,15 +25,19 @@ const REQUIRED_ENV_VARS = [
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_PHONE_NUMBER_ID",
   "WHATSAPP_BUSINESS_NUMBER",
+  "META_APP_SECRET",
   "GEMINI_API_KEY",
   "DATABASE_URL",
+  "REDIS_URL",
 ];
 
-REQUIRED_ENV_VARS.forEach((key) => {
-  if (!process.env[key]) {
-    console.warn(`[BOOT WARNING] "${key}" is not set in .env`);
-  }
-});
+const missingEnvironmentVariables = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+
+if (missingEnvironmentVariables.length > 0) {
+  const message = `[BOOT] Missing required environment variables: ${missingEnvironmentVariables.join(", ")}`;
+  if (process.env.NODE_ENV === "production") throw new Error(message);
+  console.warn(message);
+}
 
 // ─────────────────────────────────────────────
 // Security & utility middleware
@@ -44,7 +50,22 @@ app.use(
     credentials: true,
   })
 );
-app.use(morgan("dev"));
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+app.set("trust proxy", 1);
+
+// ─────────────────────────────────────────────
+// Rate limiting for Meta webhook traffic
+// ─────────────────────────────────────────────
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 150,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    console.warn(`[RATE LIMIT] Webhook rate limit reached for ${req.ip}.`);
+    res.status(429).json({ success: false, message: "Too many webhook requests." });
+  },
+});
 
 // ─────────────────────────────────────────────
 // IMPORTANT: Razorpay webhook MUST be mounted
@@ -58,6 +79,14 @@ app.use(
   "/api/webhooks/razorpay",
   express.raw({ type: "application/json" }),
   razorpayRoutes,
+);
+
+// Meta signs the exact request bytes. This must run before express.json().
+app.use(
+  "/api/webhooks/whatsapp",
+  webhookLimiter,
+  express.raw({ type: "application/json" }),
+  whatsappRoutes,
 );
 
 // ─────────────────────────────────────────────
@@ -92,21 +121,26 @@ app.get("/health", (_req: Request, res: Response) => {
   });
 });
 
-// ─────────────────────────────────────────────
-// Rate Limiting for Webhooks
-// ─────────────────────────────────────────────
-const webhookLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 150, // limit each IP to 150 requests per windowMs
-  standardHeaders: true, 
-  legacyHeaders: false, 
-  handler: (req, res) => {
-    console.warn(`[RATE LIMIT] IP ${req.ip} exceeded webhook limits.`);
-    res.status(429).json({ success: false, message: "Too many webhook requests, please try again later." });
-  }
-});
+app.get("/health/ready", async (_req: Request, res: Response) => {
+  const checks = { database: false, redis: false };
 
-app.use("/api/webhooks/whatsapp", webhookLimiter, whatsappRoutes);
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    checks.database = true;
+  } catch (error: any) {
+    console.error("[READINESS] Database check failed:", error?.message || "Unknown error");
+  }
+
+  try {
+    await redis.ping();
+    checks.redis = true;
+  } catch (error: any) {
+    console.error("[READINESS] Redis check failed:", error?.message || "Unknown error");
+  }
+
+  const ready = checks.database && checks.redis;
+  res.status(ready ? 200 : 503).json({ success: ready, status: ready ? "ready" : "not_ready", checks });
+});
 
 // ─────────────────────────────────────────────
 // 404 Handler
@@ -156,10 +190,10 @@ app.listen(PORT, async () => {
   );
   console.log("─────────────────────────────────────────────\n");
 
-  // Seed mock merchant + products into the DB after server starts.
-  // This is non-blocking — a seed failure will log a warning but
-  // will NOT crash the server.
-  await ensureSeedData();
+  // Demo data is explicit and is never allowed in a production process.
+  if (process.env.NODE_ENV !== "production" && process.env.ENABLE_DEMO_SEED === "true") {
+    await ensureSeedData();
+  }
 
   // Initialize background queue polling for decoupled webhooks
   runQueueProcessor();

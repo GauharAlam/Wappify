@@ -41,20 +41,17 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST: Acknowledges incoming WhatsApp events.
+ * POST: Rejects incoming events.
  *
- * All message processing is handled by the Express backend server.
- * This endpoint only returns 200 to prevent Meta retries if both
- * the dashboard and backend are configured as webhook URLs.
+ * All message processing is handled by the Express backend at
+ * `/api/webhooks/whatsapp`, where Meta signatures are verified and events
+ * are queued durably. A 410 makes a misconfigured callback visible instead
+ * of silently acknowledging and losing customer messages.
  */
-export async function POST(req: NextRequest) {
-  console.log(
-    "⚠️ [WhatsApp Webhook] POST received on dashboard route — messages are processed by the backend server."
+export async function POST() {
+  console.warn("[WhatsApp Webhook] Deprecated dashboard webhook endpoint received a POST.");
+  return NextResponse.json(
+    { error: "Webhook endpoint moved. Configure Meta to use the backend /api/webhooks/whatsapp endpoint." },
+    { status: 410 },
   );
-
-  return NextResponse.json({
-    status: "acknowledged",
-    message:
-      "This endpoint is deprecated. Messages are processed by the wappify-backend server.",
-  });
 }
