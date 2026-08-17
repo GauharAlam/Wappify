@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { 
   Users, 
   Store, 
@@ -86,19 +87,19 @@ export default async function AdminDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <a 
-            href="/broadcast" 
+          <Link
+            href="/broadcast"
             className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all hover:scale-105 active:scale-95"
           >
             <Sparkles className="mr-2 h-4 w-4" />
             Broadcasting
-          </a>
-          <a 
-            href="/admin/settings" 
+          </Link>
+          <Link
+            href="/admin/settings"
             className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-input bg-background hover:bg-accent transition-colors"
           >
             <Settings className="h-5 w-5 text-muted-foreground" />
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -256,4 +257,3 @@ export default async function AdminDashboardPage() {
     </div>
   );
 }
-
