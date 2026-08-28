@@ -18,8 +18,8 @@ When a customer clicks a merchant's custom link (e.g., `https://wa.me/9198765432
 - It then saves this `customer_number -> merchant_id` mapping so all future messages from this customer automatically route to the correct merchant's AI context.
 
 ### 3. Decoupled AI Processing
-Meta demands webhook acknowledgments within 20 seconds, but AI processing (Gemini) can take longer. 
-To prevent timeouts, the webhook route simply saves the raw event to the database and responds with `200 OK` instantly (<20ms). A background worker constantly polls the database, processes the AI logic, and dispatches the Meta send API requests.
+Twilio requires prompt webhook acknowledgments, but AI processing (Gemini) can take longer.
+To prevent timeouts, the webhook route validates and saves the signed Twilio event to the database, then responds with `200 OK` immediately. A background worker polls the database, processes the AI logic, and dispatches Twilio WhatsApp API requests.
 
 ---
 
@@ -46,10 +46,11 @@ The following bottlenecks have already been addressed for production deployment:
 PORT=8080
 DATABASE_URL="postgresql://user:password@cloud-db.com/db?pgbouncer=true"
 DIRECT_URL="postgresql://user:password@cloud-db.com/db"
-WHATSAPP_VERIFY_TOKEN="your_custom_secret_string_for_meta"
-WHATSAPP_ACCESS_TOKEN="EAAxxxxxx..." # Long-lived access token from Meta
-WHATSAPP_PHONE_NUMBER_ID="1234567890123"
-WHATSAPP_BUSINESS_NUMBER="919876543210" # Public facing number
+TWILIO_ACCOUNT_SID="ACxxxxxx..."
+TWILIO_AUTH_TOKEN="your_twilio_auth_token"
+TWILIO_WHATSAPP_NUMBER="14155238886" # Public-facing Twilio sender
+TWILIO_WEBHOOK_URL="https://your-backend-api.com/api/webhooks/whatsapp"
+BACKEND_INTERNAL_API_TOKEN="a_long_random_shared_secret"
 GEMINI_API_KEY="AIzaSy..."
 DASHBOARD_URL="https://your-dashboard-domain.com"
 ```
@@ -60,14 +61,16 @@ DATABASE_URL="postgresql://user:password@cloud-db.com/db"
 DIRECT_URL="postgresql://user:password@cloud-db.com/db"
 NEXTAUTH_URL="https://your-dashboard-domain.com"
 NEXTAUTH_SECRET="a_very_long_random_string"
+BACKEND_API_URL="https://your-backend-api.com"
+BACKEND_INTERNAL_API_TOKEN="the_same_long_random_shared_secret"
 ```
 
-### 3. Setting Up Meta App
-1. Go to **Meta for Developers**. Create a "Business" app.
-2. Add the **WhatsApp Product**.
-3. Generate a **System User Access Token** (never-expiring) instead of the temporary 24-hour token.
-4. Set up the Webhook API. Provide your backend URL: `https://your-backend-api.com/api/webhooks/whatsapp`. Give it your `WHATSAPP_VERIFY_TOKEN`.
-5. Subscribe to the `messages` event.
+### 3. Setting Up Twilio WhatsApp
+1. Create or configure a Twilio WhatsApp sender (use the sandbox for development).
+2. Set **When a message comes in** to `https://your-backend-api.com/api/webhooks/whatsapp` with `POST`.
+3. Set `TWILIO_WEBHOOK_URL` to that exact URL. Wappify verifies Twilio's `X-Twilio-Signature` on every incoming webhook.
+4. Keep `BACKEND_INTERNAL_API_TOKEN` identical in the backend and dashboard, but never expose it to the browser.
+5. See [the detailed Twilio setup guide](docs/twilio-whatsapp-setup.md) for verification and broadcast requirements.
 
 ### 4. Setting up Razorpay Webhooks
 In Razorpay Developer Console, configure webhooks to hit:

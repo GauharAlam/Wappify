@@ -3,8 +3,8 @@
 ## Release blockers to complete outside this repository
 
 1. Create fresh Supabase connection strings from **Supabase → Connect**. The current connection is rejected by Supabase and cannot be repaired from application code.
-2. Rotate every database, Meta, Gemini, Razorpay, and Clerk credential that has been copied into a local environment or shared outside the provider dashboard.
-3. Configure the Meta WhatsApp callback URL as:
+2. Rotate every database, Twilio, Gemini, Razorpay, and Clerk credential that has been copied into a local environment or shared outside the provider dashboard.
+3. Configure the Twilio WhatsApp callback URL as:
 
    ```text
    https://<backend-domain>/api/webhooks/whatsapp
@@ -22,21 +22,21 @@ Set these in Render's encrypted environment-variable settings; never commit them
 DATABASE_URL
 DIRECT_URL
 REDIS_URL
-WHATSAPP_VERIFY_TOKEN
-WHATSAPP_ACCESS_TOKEN
-WHATSAPP_PHONE_NUMBER_ID
-WHATSAPP_BUSINESS_NUMBER
-META_APP_SECRET
+TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN
+TWILIO_WHATSAPP_NUMBER
+TWILIO_WEBHOOK_URL
+BACKEND_INTERNAL_API_TOKEN
 GEMINI_API_KEY
 RAZORPAY_WEBHOOK_SECRET
 DASHBOARD_URL
 ```
 
-`META_APP_SECRET` is the Meta app secret used to verify `X-Hub-Signature-256`. Production startup deliberately fails if it, Redis, or any other required core integration is missing.
+`TWILIO_WEBHOOK_URL` must exactly match the callback in Twilio. The backend validates Twilio's `X-Twilio-Signature`, and production startup deliberately fails if a required core integration is missing.
 
 ## Database rollout
 
-The webhook reliability schema change adds a Meta event id, retry count, retry time, and queue index.
+The webhook reliability schema change adds a provider event id, retry count, retry time, and queue index.
 
 For an existing database created by the current app, Render executes this automatically before deployment:
 
@@ -55,7 +55,7 @@ curl https://<backend-domain>/health/ready
 
 `/health/ready` must report both `database` and `redis` as `true` before configuring traffic or webhooks.
 
-In Meta's webhook console, verify the GET challenge and send a test webhook. The endpoint must reject an unsigned POST with `401`, accept a correctly signed event with `200`, and process the queued event exactly once.
+In Twilio's WhatsApp sender console, send a test webhook. The endpoint must reject an unsigned POST with `401`, accept a correctly signed event with `200`, and process the queued event exactly once.
 
 ## Operational requirements
 

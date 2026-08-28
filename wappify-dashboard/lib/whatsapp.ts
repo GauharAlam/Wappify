@@ -1,6 +1,6 @@
 /**
  * WhatsApp utility functions for the dashboard.
- * Uses the centralised Meta Cloud API — no per-merchant Twilio credentials.
+ * Uses the centralised Twilio WhatsApp sender in the backend.
  */
 
 /**
@@ -28,13 +28,24 @@ export const getStoreLink = (
  * Used for broadcast/admin features from the dashboard.
  */
 export async function sendWhatsAppMessage(
+  orgId: string,
   to: string,
-  text: string,
+  message: string,
 ): Promise<void> {
-  const response = await fetch("/api/webhook/send", {
+  const backendUrl = process.env.BACKEND_API_URL;
+  const internalToken = process.env.BACKEND_INTERNAL_API_TOKEN;
+
+  if (!backendUrl || !internalToken) {
+    throw new Error("BACKEND_API_URL and BACKEND_INTERNAL_API_TOKEN must be configured");
+  }
+
+  const response = await fetch(`${backendUrl.replace(/\/$/, "")}/api/messages`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ to, text }),
+    headers: {
+      "Content-Type": "application/json",
+      "x-wappify-internal-token": internalToken,
+    },
+    body: JSON.stringify({ orgId, to, message }),
   });
 
   if (!response.ok) {

@@ -8,6 +8,7 @@ import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import whatsappRoutes from "./routes/whatsapp.routes";
 import razorpayRoutes from "./routes/razorpay.routes";
+import messagesRoutes from "./routes/messages.routes";
 import { ensureSeedData } from "./lib/seed";
 import { prisma } from "./lib/prisma";
 import { redis } from "./lib/redis";
@@ -21,11 +22,11 @@ const PORT = Number(process.env.PORT || 8080);
 // ─────────────────────────────────────────────
 
 const REQUIRED_ENV_VARS = [
-  "WHATSAPP_VERIFY_TOKEN",
-  "WHATSAPP_ACCESS_TOKEN",
-  "WHATSAPP_PHONE_NUMBER_ID",
-  "WHATSAPP_BUSINESS_NUMBER",
-  "META_APP_SECRET",
+  "TWILIO_ACCOUNT_SID",
+  "TWILIO_AUTH_TOKEN",
+  "TWILIO_WHATSAPP_NUMBER",
+  "TWILIO_WEBHOOK_URL",
+  "BACKEND_INTERNAL_API_TOKEN",
   "GEMINI_API_KEY",
   "DATABASE_URL",
   "REDIS_URL",
@@ -54,7 +55,7 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 app.set("trust proxy", 1);
 
 // ─────────────────────────────────────────────
-// Rate limiting for Meta webhook traffic
+// Rate limiting for Twilio webhook traffic
 // ─────────────────────────────────────────────
 const webhookLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
@@ -81,11 +82,11 @@ app.use(
   razorpayRoutes,
 );
 
-// Meta signs the exact request bytes. This must run before express.json().
+// Twilio signs URL-encoded form fields. This must run before express.urlencoded().
 app.use(
   "/api/webhooks/whatsapp",
   webhookLimiter,
-  express.raw({ type: "application/json" }),
+  express.raw({ type: "application/x-www-form-urlencoded" }),
   whatsappRoutes,
 );
 
@@ -95,6 +96,7 @@ app.use(
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use("/api/messages", messagesRoutes);
 
 // ─────────────────────────────────────────────
 // Request logger middleware

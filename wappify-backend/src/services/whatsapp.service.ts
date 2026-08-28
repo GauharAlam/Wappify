@@ -1,4 +1,4 @@
-import { sendMetaTextMessage } from "./metaWhatsapp.service";
+import { sendTwilioTextMessage } from "./twilioWhatsapp.service";
 import { prisma } from "../lib/prisma";
 
 // ─────────────────────────────────────────────
@@ -14,8 +14,7 @@ export interface CatalogProduct {
 
 // ─────────────────────────────────────────────
 // Core: Send text message
-// Now uses the centralised Meta Cloud API instead
-// of per-merchant Twilio credentials.
+// Uses the centralised Twilio WhatsApp sender.
 // ─────────────────────────────────────────────
 
 export const sendTextMessage = async (
@@ -30,7 +29,7 @@ export const sendTextMessage = async (
   console.log(`[WA SERVICE] Sending text message to: ${to}`);
 
   try {
-    await sendMetaTextMessage(to, message);
+    await sendTwilioTextMessage(to, message);
 
     console.log(`[WA SERVICE] Message sent successfully to ${to}`);
 

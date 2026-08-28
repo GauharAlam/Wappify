@@ -1,6 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { routeMessage } from "./messageRouter.service";
 import { redis } from "../lib/redis";
+import { normaliseTwilioWhatsAppNumber, sendTwilioTextMessage } from "./twilioWhatsapp.service";
 
 const POLL_INTERVAL_MS = Number(process.env.WEBHOOK_QUEUE_POLL_MS || 2_000);
 const MAX_QUEUE_ATTEMPTS = Number(process.env.WEBHOOK_QUEUE_MAX_ATTEMPTS || 5);
@@ -19,10 +20,7 @@ const COMPLETED_EVENT_RETENTION_DAYS = Number(process.env.WEBHOOK_EVENT_RETENTIO
  * Customers click this link and auto-send the store code.
  */
 export const getShareableLink = (storeCode: string): string => {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || "";
-  // The wa.me link uses the actual phone number, not the ID.
-  // In production, this should be the actual WhatsApp Business phone number.
-  const waNumber = process.env.WHATSAPP_BUSINESS_NUMBER || phoneNumberId;
+  const waNumber = process.env.TWILIO_WHATSAPP_NUMBER || "";
   return `https://wa.me/${waNumber}?text=STORE-${storeCode}`;
 };
 
@@ -30,43 +28,29 @@ export const getShareableLink = (storeCode: string): string => {
 // Parse Meta Cloud API webhook payload
 // ─────────────────────────────────────────────
 
-interface ParsedMetaMessage {
+interface ParsedTwilioMessage {
   from: string;        // Customer's WhatsApp number (e.g. "919876543210")
   messageId: string;   // Meta message ID (wamid.xxx)
   customerName?: string;
   messageType: string; // "text", "image", "video", "audio", "document", "sticker", etc.
   textBody?: string;   // Only present for type "text"
-  phoneNumberId: string; // The platform's phone number ID that received the message
+  phoneNumber: string;
 }
 
-const parseMetaPayload = (payload: any): ParsedMetaMessage | null => {
+const parseTwilioPayload = (payload: Record<string, string>): ParsedTwilioMessage | null => {
   try {
-    const entry = payload?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
-
-    if (!value) return null;
-
-    // Status updates (delivered, read, etc.) — skip
-    if (value.statuses && !value.messages) {
-      return null;
-    }
-
-    const message = value.messages?.[0];
-    if (!message) return null;
-
-    const contact = value.contacts?.[0];
+    if (!payload.From?.startsWith("whatsapp:")) return null;
 
     return {
-      from: message.from,
-      messageId: message.id || "",
-      customerName: contact?.profile?.name || undefined,
-      messageType: message.type || "text",
-      textBody: message.text?.body || undefined,
-      phoneNumberId: value.metadata?.phone_number_id || "",
+      from: normaliseTwilioWhatsAppNumber(payload.From),
+      messageId: payload.MessageSid || "",
+      customerName: payload.ProfileName || undefined,
+      messageType: Number(payload.NumMedia || "0") > 0 ? "media" : "text",
+      textBody: payload.Body || undefined,
+      phoneNumber: normaliseTwilioWhatsAppNumber(payload.To || ""),
     };
   } catch (err) {
-    console.error("[QUEUE PROCESSOR] Failed to parse Meta payload:", err);
+    console.error("[QUEUE PROCESSOR] Failed to parse Twilio payload:", err);
     return null;
   }
 };
@@ -155,7 +139,7 @@ const resolveMerchant = async (
 // ─────────────────────────────────────────────
 
 async function processJob(jobId: string, payload: any) {
-  const parsed = parseMetaPayload(payload);
+  const parsed = parseTwilioPayload(payload);
 
   if (!parsed) {
     // Status update or unparseable — silently skip
@@ -176,8 +160,7 @@ async function processJob(jobId: string, payload: any) {
 
     // Send a helper message to unrouted customers
     try {
-      const { sendMetaTextMessage } = await import("./metaWhatsapp.service");
-      await sendMetaTextMessage(
+      await sendTwilioTextMessage(
         from,
         "👋 Welcome to Wappify!\n\nIt looks like you reached us without a store link. Please ask the merchant for their WhatsApp store link to get started. 🙏",
       );
@@ -211,7 +194,7 @@ async function processJob(jobId: string, payload: any) {
  * Polls the database for PENDING webhook events.
  */
 export async function runQueueProcessor() {
-  console.log("⚡ Queue Processor Initialized (Meta Cloud API mode)");
+  console.log("⚡ Queue Processor Initialized (Twilio WhatsApp mode)");
 
   let isProcessing = false;
   let lastRetentionCleanup = 0;

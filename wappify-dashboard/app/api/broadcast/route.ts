@@ -26,8 +26,8 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "WhatsApp not configured. Complete onboarding first." }, { status: 400 });
     }
 
-    // Send via the centralised Meta Cloud API (through the backend)
-    await sendWhatsAppMessage(to, message);
+    // Send via the centralised Twilio WhatsApp sender (through the backend).
+    await sendWhatsAppMessage(org.id, to, message);
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

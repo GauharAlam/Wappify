@@ -4,6 +4,7 @@
 [![Node.js](https://img.shields.io/badge/node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-3982CE?style=for-the-badge&logo=Prisma&logoColor=white)](https://www.prisma.io/)
 [![Gemini](https://img.shields.io/badge/Gemini_AI-4285F4?style=for-the-badge&logo=google-cloud&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Twilio](https://img.shields.io/badge/Twilio-WhatsApp-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/whatsapp)
 
 Wappify is a premium, multi-tenant SaaS platform that enables D2C brands to sell directly on WhatsApp. It combines AI-driven customer engagement with a robust merchant dashboard to manage products, orders, and payments.
 
@@ -50,11 +51,11 @@ graph TD
     Merchant((Merchant)) <--> |Next.js 15| WD[Wappify Dashboard]
     WD <--> |Prisma| DB
     
-    WB <--> |Webhooks| P[Razorpay/Meta]
+    WB <--> |Webhooks| P[Razorpay/Twilio]
 ```
 
 ### `/wappify-backend`
-The high-throughput engine. Features a webhook receiver that instantly acknowledges Meta API events, a Postgres-backed queue, and a background processor that handles AI orchestration and response dispatching.
+The high-throughput engine. Features a signed Twilio WhatsApp webhook receiver, a Postgres-backed queue, and a background processor that handles AI orchestration and response dispatching.
 
 ### `/wappify-dashboard`
 The merchant facing portal. Built with Next.js 15 (App Router), featuring a conversion-optimized landing page, secure onboarding, and real-time business intelligence.
@@ -66,7 +67,7 @@ The merchant facing portal. Built with Next.js 15 (App Router), featuring a conv
 - **Dashboard**: Next.js 15, Tailwind CSS, Shadcn/UI, Framer Motion, Lucide.
 - **Backend Server**: Node.js & Express with TypeScript.
 - **Database**: PostgreSQL (managed via Prisma ORM).
-- **Core Engine**: Google Gemini AI, WhatsApp Cloud API, Razorpay Payments.
+- **Core Engine**: Google Gemini AI, Twilio WhatsApp API, Razorpay Payments.
 
 ---
 
@@ -74,7 +75,7 @@ The merchant facing portal. Built with Next.js 15 (App Router), featuring a conv
 
 ### Prerequisites
 - Node.js 18+
-- A [Meta Developer Account](https://developers.facebook.com/)
+- A [Twilio account with WhatsApp enabled](https://www.twilio.com/whatsapp)
 - A [Google AI Studio Key](https://aistudio.google.com/)
 - A [PostgreSQL Database](https://supabase.com/)
 
@@ -99,6 +100,8 @@ npx prisma generate
 npx prisma db push
 npm run dev
 ```
+
+For Twilio credentials, webhook setup, and broadcast configuration, see [the Twilio WhatsApp setup guide](docs/twilio-whatsapp-setup.md).
 
 ---
 
