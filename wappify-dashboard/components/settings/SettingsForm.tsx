@@ -14,6 +14,10 @@ import {
   Copy,
   ExternalLink,
   Smartphone,
+  ShieldCheck,
+  KeyRound,
+  RotateCcw,
+  Edit3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -313,6 +317,127 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
     },
   });
 
+  // ── WhatsApp Verification state ─────────────
+  const [isVerified, setIsVerified] = React.useState<boolean>(
+    Boolean(merchant?.whatsappConnected)
+  );
+  const [isEditingNumber, setIsEditingNumber] = React.useState<boolean>(
+    !merchant?.whatsappConnected
+  );
+  const [otpState, setOtpState] = React.useState<{
+    step: "idle" | "sending" | "otp_sent" | "verifying";
+    otp: string;
+    error: string | null;
+    success: string | null;
+    countdown: number;
+  }>({
+    step: "idle",
+    otp: "",
+    error: null,
+    success: null,
+    countdown: 0,
+  });
+
+  // Countdown timer for OTP resend
+  React.useEffect(() => {
+    if (otpState.countdown <= 0) return;
+    const timer = setTimeout(() => {
+      setOtpState((prev) => ({ ...prev, countdown: prev.countdown - 1 }));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [otpState.countdown]);
+
+  const handleSendOtp = async () => {
+    const rawNumber = form.whatsappNumber.trim();
+    if (!rawNumber) {
+      setOtpState((prev) => ({
+        ...prev,
+        error: "Please enter your WhatsApp business number first.",
+      }));
+      return;
+    }
+
+    setOtpState((prev) => ({ ...prev, step: "sending", error: null, success: null }));
+
+    try {
+      const response = await fetch("/api/settings/whatsapp/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ whatsappNumber: rawNumber }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Failed to send verification code.");
+      }
+
+      setOtpState({
+        step: "otp_sent",
+        otp: "",
+        error: null,
+        success: "Verification code sent to your WhatsApp!",
+        countdown: 60,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to send code.";
+      setOtpState((prev) => ({
+        ...prev,
+        step: "idle",
+        error: message,
+      }));
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const rawOtp = otpState.otp.trim();
+    if (!rawOtp || rawOtp.length !== 6) {
+      setOtpState((prev) => ({
+        ...prev,
+        error: "Please enter the complete 6-digit verification code.",
+      }));
+      return;
+    }
+
+    setOtpState((prev) => ({ ...prev, step: "verifying", error: null }));
+
+    try {
+      const response = await fetch("/api/settings/whatsapp/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          whatsappNumber: form.whatsappNumber.trim(),
+          otp: rawOtp,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Verification failed. Please check the code.");
+      }
+
+      setIsVerified(true);
+      setIsEditingNumber(false);
+      setOtpState({
+        step: "idle",
+        otp: "",
+        error: null,
+        success: "WhatsApp number verified successfully! 🎉",
+        countdown: 0,
+      });
+
+      router.refresh();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Verification failed.";
+      setOtpState((prev) => ({
+        ...prev,
+        step: "otp_sent",
+        error: message,
+      }));
+    }
+  };
+
   // ── Per-section save status ─────────────────
   const [whatsappStatus, setWhatsappStatus] = React.useState<SectionState>({
     status: "idle",
@@ -472,34 +597,195 @@ export default function SettingsForm({ merchant }: SettingsFormProps) {
             </Field>
 
             {/* WhatsApp Business Number */}
-            <Field
-              id="whatsappNumber"
-              label="WhatsApp Business Number"
-              required
-              hint="Your business phone number that customers know. Format: country code + number (e.g. 919876543210)."
-            >
-              <Input
+            <div className="space-y-3">
+              <Field
                 id="whatsappNumber"
-                name="whatsappNumber"
-                placeholder="919876543210"
-                value={form.whatsappNumber}
-                onChange={handleChange}
-                disabled={whatsappStatus.status === "saving"}
-                maxLength={20}
-              />
-            </Field>
+                label="WhatsApp Business Number"
+                required
+                hint="Your business phone number that customers know. Format: country code + number (e.g. 919876543210)."
+              >
+                {isVerified && !isEditingNumber ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 rounded-md border border-green-200 bg-green-50/70 px-3 py-2 text-sm font-mono font-medium text-green-900 flex items-center justify-between">
+                      <span>+{form.whatsappNumber}</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                        Verified & Connected
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditingNumber(true)}
+                      className="gap-1.5 text-xs h-9"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                      Change Number
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="whatsappNumber"
+                        name="whatsappNumber"
+                        placeholder="919876543210"
+                        value={form.whatsappNumber}
+                        onChange={handleChange}
+                        disabled={otpState.step === "sending" || otpState.step === "verifying"}
+                        maxLength={20}
+                        className="font-mono text-sm"
+                      />
+                      {otpState.step !== "otp_sent" && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={handleSendOtp}
+                          disabled={otpState.step === "sending" || !form.whatsappNumber.trim()}
+                          className="shrink-0 gap-1.5 text-xs h-9"
+                        >
+                          {otpState.step === "sending" ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Sending…
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="h-4 w-4 text-primary" />
+                              Verify via WhatsApp
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+
+                    {isVerified && isEditingNumber && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForm((prev) => ({ ...prev, whatsappNumber: merchant?.whatsappNumber ?? "" }));
+                            setIsEditingNumber(false);
+                            setOtpState((prev) => ({ ...prev, step: "idle", error: null }));
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground underline transition-colors"
+                        >
+                          Cancel changing number
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Field>
+
+              {/* OTP Verification Box */}
+              {(otpState.step === "otp_sent" || otpState.step === "verifying") && (
+                <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-4 space-y-3 animate-in fade-in-50">
+                  <div className="flex items-center gap-2">
+                    <KeyRound className="h-4.5 w-4.5 text-primary" />
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">
+                        Enter 6-Digit WhatsApp Verification Code
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        We sent a 6-digit code to <strong>+{form.whatsappNumber}</strong> on WhatsApp.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="• • • • • •"
+                      maxLength={6}
+                      value={otpState.otp}
+                      onChange={(e) =>
+                        setOtpState((prev) => ({
+                          ...prev,
+                          otp: e.target.value.replace(/\D/g, ""),
+                          error: null,
+                        }))
+                      }
+                      className="max-w-[180px] font-mono text-center tracking-widest text-lg font-bold bg-white"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={otpState.step === "verifying" || otpState.otp.length !== 6}
+                      className="gap-1.5 text-xs h-10 px-4"
+                    >
+                      {otpState.step === "verifying" ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Verifying…
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Verify & Connect
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    {otpState.countdown > 0 ? (
+                      <span className="text-muted-foreground">
+                        Resend code in <strong className="font-mono text-foreground">{otpState.countdown}s</strong>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        disabled={otpState.step === "verifying"}
+                        className="text-primary hover:underline font-medium inline-flex items-center gap-1"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Resend code
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setOtpState((prev) => ({ ...prev, step: "idle", error: null }))}
+                      className="text-muted-foreground hover:text-foreground underline"
+                    >
+                      Change number
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* OTP Error / Success Feedback */}
+              {otpState.error && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs font-medium text-destructive">
+                  ⚠️ {otpState.error}
+                </div>
+              )}
+              {otpState.success && (
+                <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-xs font-medium text-green-700 flex items-center gap-2">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  {otpState.success}
+                </div>
+              )}
+            </div>
 
             {/* Connection status badge */}
             <div className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2.5">
-              <div className={cn(
-                "h-2.5 w-2.5 rounded-full",
-                merchant?.whatsappConnected ? "bg-green-500 animate-pulse" : "bg-neutral-300"
-              )} />
+              <div
+                className={cn(
+                  "h-2.5 w-2.5 rounded-full",
+                  isVerified ? "bg-green-500 animate-pulse" : "bg-neutral-300"
+                )}
+              />
               <span className="text-sm font-medium text-green-800">
-                {merchant?.whatsappConnected ? "Connected" : "Not Connected"}
+                {isVerified ? "WhatsApp Verified & Connected" : "WhatsApp Not Connected (Verification Required)"}
               </span>
               <span className="text-xs text-green-600 ml-auto">
-                Powered by Wappify — zero setup required ✨
+                Powered by Twilio ✨
               </span>
             </div>
 

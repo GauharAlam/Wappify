@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthContext } from "@/lib/auth-utils";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -132,27 +133,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Send via WhatsApp API
+    // Send via unified Twilio WhatsApp backend service
     try {
-      const waResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: conversation.contact.waId,
-            text: { body: content.trim() },
-          }),
-        }
+      await sendWhatsAppMessage(
+        context.org.id,
+        conversation.contact.waId,
+        content.trim()
       );
-
-      if (!waResponse.ok) {
-        console.error("[API /inbox POST] WhatsApp API error:", await waResponse.text());
-      }
     } catch (waError) {
       console.error("[API /inbox POST] Failed to send WhatsApp message:", waError);
     }
