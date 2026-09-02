@@ -130,6 +130,7 @@ export const markOrderAsPaid = async (
 
   const existingOrder = await prisma.order.findFirst({
     where: { razorpayOrderId: razorpayPaymentLinkId },
+    include: { items: true },
   });
 
   if (!existingOrder) {
@@ -146,24 +147,43 @@ export const markOrderAsPaid = async (
     return null;
   }
 
-  const updatedOrder = await prisma.order.update({
-    where: { id: existingOrder.id },
-    data: {
-      status: "PAID",
-      razorpayPaymentId,
-    },
-    include: {
-      contact: true,
-      items: {
-        include: {
-          product: true,
+  const updatedOrder = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.update({
+      where: { id: existingOrder.id },
+      data: {
+        status: "PAID",
+        razorpayPaymentId,
+      },
+      include: {
+        contact: true,
+        items: {
+          include: {
+            product: true,
+          },
         },
       },
-    },
+    });
+
+    // Decrement product stock
+    for (const item of existingOrder.items) {
+      await tx.product.update({
+        where: { id: item.productId },
+        data: {
+          stock: {
+            decrement: item.quantity,
+          },
+        },
+      });
+      console.log(
+        `[ORDER SERVICE] Decremented ${item.quantity} units for product ${item.productId}`,
+      );
+    }
+
+    return order;
   });
 
   console.log(
-    `[ORDER SERVICE] ✅ Order ${updatedOrder.id} marked as PAID`,
+    `[ORDER SERVICE] ✅ Order ${updatedOrder.id} marked as PAID and stock decremented`,
   );
 
   return updatedOrder;

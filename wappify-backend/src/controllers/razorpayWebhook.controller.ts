@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Request, Response } from "express";
 import { markOrderAsPaid } from "../services/order.service";
 import { sendTextMessage } from "../services/whatsapp.service";
+import { logMessage } from "../services/messageRouter.service";
 
 // ─────────────────────────────────────────────
 // Signature Verification
@@ -149,10 +150,11 @@ export const receiveRazorpayWebhook = async (
           `Koi sawaal ho toh yahan message karein — hum hamesha available hain. 😊`,
         ].join("\n");
 
+        await logMessage(updatedOrder.orgId, contactWaId, "bot", confirmationMessage, contactName);
         await sendTextMessage(updatedOrder.orgId, contactWaId, confirmationMessage);
 
         console.log(
-          "[RAZORPAY WEBHOOK] Payment confirmation sent."
+          "[RAZORPAY WEBHOOK] Payment confirmation sent and logged."
         );
         break;
       }

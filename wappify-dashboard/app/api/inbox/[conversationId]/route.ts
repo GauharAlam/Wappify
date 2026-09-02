@@ -92,7 +92,7 @@ export async function PATCH(
 
   try {
     const body = await req.json();
-    const { status, assignedToId } = body;
+    const { status, assignedToId, isEscalated } = body;
 
     // Verify conversation belongs to this org
     const conversation = await prisma.conversation.findFirst({
@@ -110,6 +110,10 @@ export async function PATCH(
 
     if (status && ["OPEN", "ASSIGNED", "RESOLVED", "CLOSED"].includes(status)) {
       updateData.status = status;
+    }
+
+    if (typeof isEscalated === "boolean") {
+      updateData.isEscalated = isEscalated;
     }
 
     if (assignedToId !== undefined) {

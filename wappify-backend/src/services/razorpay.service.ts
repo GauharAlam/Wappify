@@ -4,6 +4,11 @@ import axios from "axios";
 // Types
 // ─────────────────────────────────────────────
 
+export interface RazorpayCredentials {
+  keyId: string;
+  keySecret: string;
+}
+
 export interface CreatePaymentLinkParams {
   amountInRupees: number;
   currency?: string;
@@ -11,6 +16,7 @@ export interface CreatePaymentLinkParams {
   customerPhone: string;
   customerName?: string;
   description: string;
+  credentials?: RazorpayCredentials;
 }
 
 export interface RazorpayPaymentLink {
@@ -29,13 +35,17 @@ export interface RazorpayPaymentLink {
 // Helpers
 // ─────────────────────────────────────────────
 
-const getRazorpayCredentials = (): { keyId: string; keySecret: string } => {
+const getRazorpayCredentials = (override?: RazorpayCredentials): { keyId: string; keySecret: string } => {
+  if (override?.keyId && override?.keySecret) {
+    return override;
+  }
+
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
   if (!keyId || !keySecret) {
     throw new Error(
-      "RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not set in .env"
+      "Razorpay credentials are not configured for this merchant and RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are not set in .env"
     );
   }
 
@@ -56,7 +66,7 @@ const getExpiryTimestamp = (hoursFromNow = 24): number =>
 export const createPaymentLink = async (
   params: CreatePaymentLinkParams
 ): Promise<RazorpayPaymentLink> => {
-  const { keyId, keySecret } = getRazorpayCredentials();
+  const { keyId, keySecret } = getRazorpayCredentials(params.credentials);
   const baseUrl = process.env.BASE_URL;
 
   const amountInPaise = rupeesToPaise(params.amountInRupees);
@@ -132,9 +142,10 @@ export const createPaymentLink = async (
 // ─────────────────────────────────────────────
 
 export const fetchPaymentLink = async (
-  paymentLinkId: string
+  paymentLinkId: string,
+  credentials?: RazorpayCredentials
 ): Promise<RazorpayPaymentLink> => {
-  const { keyId, keySecret } = getRazorpayCredentials();
+  const { keyId, keySecret } = getRazorpayCredentials(credentials);
 
   console.log("[RAZORPAY] Fetching payment link:", paymentLinkId);
 
