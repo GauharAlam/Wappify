@@ -192,14 +192,16 @@ async function processJob(jobId: string, payload: any) {
 
 /**
  * Polls the database for PENDING webhook events.
+ * Uses a draining loop to process queued events quickly under burst load.
  */
 export async function runQueueProcessor() {
   console.log("⚡ Queue Processor Initialized (Twilio WhatsApp mode)");
 
   let isProcessing = false;
   let lastRetentionCleanup = 0;
+  const MAX_BATCH_PER_TICK = 10;
 
-  const processNextJob = async () => {
+  const drainQueue = async () => {
     if (isProcessing) return;
     isProcessing = true;
 
@@ -210,46 +212,55 @@ export async function runQueueProcessor() {
         data: { status: "PENDING", nextAttemptAt: new Date() },
       });
 
-      const jobs = await prisma.$queryRaw<Array<{ id: string; payload: unknown; attempts: number }>>`
-        UPDATE "WebhookEvent"
-        SET status = 'PROCESSING', attempts = attempts + 1, "updatedAt" = NOW()
-        WHERE id = (
-          SELECT id
-          FROM "WebhookEvent"
-          WHERE status = 'PENDING'
-            AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= NOW())
-          ORDER BY "createdAt" ASC
-          FOR UPDATE SKIP LOCKED
-          LIMIT 1
-        )
-        RETURNING id, payload, attempts;
-      `;
+      let hasMore = true;
+      let drainedCount = 0;
 
-      if (!jobs || jobs.length === 0) return;
+      while (hasMore && drainedCount < MAX_BATCH_PER_TICK) {
+        const jobs = await prisma.$queryRaw<Array<{ id: string; payload: unknown; attempts: number }>>`
+          UPDATE "WebhookEvent"
+          SET status = 'PROCESSING', attempts = attempts + 1, "updatedAt" = NOW()
+          WHERE id = (
+            SELECT id
+            FROM "WebhookEvent"
+            WHERE status = 'PENDING'
+              AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= NOW())
+            ORDER BY "createdAt" ASC
+            FOR UPDATE SKIP LOCKED
+            LIMIT 1
+          )
+          RETURNING id, payload, attempts;
+        `;
 
-      const job = jobs[0];
-      console.log(`[QUEUE PROCESSOR] Processing event ${job.id}, attempt ${job.attempts}.`);
+        if (!jobs || jobs.length === 0) {
+          hasMore = false;
+          break;
+        }
 
-      try {
-        await processJob(job.id, job.payload);
-        await prisma.webhookEvent.update({
-          where: { id: job.id },
-          data: { status: "COMPLETED", error: null, nextAttemptAt: null },
-        });
-      } catch (error: any) {
-        const isFinalAttempt = job.attempts >= MAX_QUEUE_ATTEMPTS;
-        const backoffMinutes = Math.min(2 ** (job.attempts - 1), 60);
-        const errorMessage = error instanceof Error ? error.message.slice(0, 500) : "Unknown webhook processing error";
+        drainedCount++;
+        const job = jobs[0];
+        console.log(`[QUEUE PROCESSOR] Processing event ${job.id}, attempt ${job.attempts}.`);
 
-        await prisma.webhookEvent.update({
-          where: { id: job.id },
-          data: {
-            status: isFinalAttempt ? "FAILED" : "PENDING",
-            error: errorMessage,
-            nextAttemptAt: isFinalAttempt ? null : new Date(Date.now() + backoffMinutes * 60 * 1000),
-          },
-        });
-        console.error(`[QUEUE PROCESSOR] Event ${job.id} ${isFinalAttempt ? "failed permanently" : "scheduled for retry"}.`);
+        try {
+          await processJob(job.id, job.payload);
+          await prisma.webhookEvent.update({
+            where: { id: job.id },
+            data: { status: "COMPLETED", error: null, nextAttemptAt: null },
+          });
+        } catch (error: any) {
+          const isFinalAttempt = job.attempts >= MAX_QUEUE_ATTEMPTS;
+          const backoffMinutes = Math.min(2 ** (job.attempts - 1), 60);
+          const errorMessage = error instanceof Error ? error.message.slice(0, 500) : "Unknown webhook processing error";
+
+          await prisma.webhookEvent.update({
+            where: { id: job.id },
+            data: {
+              status: isFinalAttempt ? "FAILED" : "PENDING",
+              error: errorMessage,
+              nextAttemptAt: isFinalAttempt ? null : new Date(Date.now() + backoffMinutes * 60 * 1000),
+            },
+          });
+          console.error(`[QUEUE PROCESSOR] Event ${job.id} ${isFinalAttempt ? "failed permanently" : "scheduled for retry"}.`);
+        }
       }
 
       if (Date.now() - lastRetentionCleanup > 24 * 60 * 60 * 1000) {
@@ -268,6 +279,6 @@ export async function runQueueProcessor() {
     }
   };
 
-  await processNextJob();
-  setInterval(() => void processNextJob(), POLL_INTERVAL_MS);
+  await drainQueue();
+  setInterval(() => void drainQueue(), POLL_INTERVAL_MS);
 }

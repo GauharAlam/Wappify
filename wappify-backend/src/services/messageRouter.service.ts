@@ -25,7 +25,7 @@ import { isWithinBusinessHours } from "../lib/businessHours";
 // Chat Message Logger (persists to DB for CRM)
 // ─────────────────────────────────────────────
 
-const logMessage = async (
+export const logMessage = async (
   orgId: string,
   customerWaId: string,
   sender: "customer" | "bot",
@@ -213,6 +213,8 @@ interface PaymentConfig {
   mode: "razorpay" | "upi" | "none";
   upiId?: string;
   merchantName: string;
+  razorpayKeyId?: string | null;
+  razorpayKeySecret?: string | null;
 }
 
 const getPaymentConfig = async (orgId: string): Promise<PaymentConfig> => {
@@ -232,7 +234,12 @@ const getPaymentConfig = async (orgId: string): Promise<PaymentConfig> => {
 
   // Prefer Razorpay if fully configured
   if (merchant.razorpayKeyId && merchant.razorpayKeySecret) {
-    return { mode: "razorpay", merchantName: merchant.name };
+    return {
+      mode: "razorpay",
+      merchantName: merchant.name,
+      razorpayKeyId: merchant.razorpayKeyId,
+      razorpayKeySecret: merchant.razorpayKeySecret,
+    };
   }
 
   // Fallback to UPI deep links (zero cost)
@@ -384,12 +391,17 @@ const handleBuyRequest = async (
     if (paymentConfig.mode === "razorpay") {
       console.log(`[ROUTER] Using RAZORPAY for order #${shortOrderId}`);
 
+      const credentials = paymentConfig.razorpayKeyId && paymentConfig.razorpayKeySecret
+        ? { keyId: paymentConfig.razorpayKeyId, keySecret: paymentConfig.razorpayKeySecret }
+        : undefined;
+
       const paymentLink = await createPaymentLink({
         amountInRupees: matchedProduct.price,
         orderId: order.id,
         customerPhone: from,
         customerName: customerName,
         description: `${paymentConfig.merchantName} — ${matchedProduct.name}`,
+        credentials,
       });
 
       await updateOrderWithRazorpayLink(order.id, paymentLink.id);
@@ -412,6 +424,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
+      await logMessage(orgId, from, "bot", message);
       await sendTextMessage(orgId, from, message);
       console.log(`[ROUTER] Razorpay link sent for order #${shortOrderId}.`);
     }
@@ -453,6 +466,7 @@ const handleBuyRequest = async (
         `Koi issue ho toh seedha yahan message karein! 😊`,
       ].join("\n");
 
+      await logMessage(orgId, from, "bot", message);
       await sendTextMessage(orgId, from, message);
       console.log(`[ROUTER] UPI link sent for order #${shortOrderId}.`);
     }
@@ -462,16 +476,15 @@ const handleBuyRequest = async (
     console.error("[ROUTER] Message:", error?.message || "Unknown error");
     console.error("[ROUTER] Stack  :", error?.stack || "No stack");
 
-    await sendTextMessage(
-      orgId,
-      from,
-      [
-        `😔 Order process mein kuch problem aayi!`,
-        ``,
-        `Hum is par kaam kar rahe hain. Please *thodi der baad dobara try karein* ya`,
-        `is number par seedha message karein.`,
-      ].join("\n"),
-    );
+    const failureMessage = [
+      `😔 Order process mein kuch problem aayi!`,
+      ``,
+      `Hum is par kaam kar rahe hain. Please *thodi der baad dobara try karein* ya`,
+      `is number par seedha message karein.`,
+    ].join("\n");
+
+    await logMessage(orgId, from, "bot", failureMessage);
+    await sendTextMessage(orgId, from, failureMessage);
   }
 };
 
@@ -566,14 +579,14 @@ export const routeMessage = async (
   switch (matchedRule.action) {
     case "SEND_TEXT":
       if (matchedRule.responseText) {
-        logMessage(orgId, from, "bot", matchedRule.responseText);
+        await logMessage(orgId, from, "bot", matchedRule.responseText);
         await sendTextMessage(orgId, from, matchedRule.responseText);
       }
       break;
     case "SEND_GREETING":
-      clearConversation(from);
+      await clearConversation(from);
       const greetingMsg = `Namaste${customerName ? " " + customerName : ""}! 🙏 Welcome to ${merchantName}!\n\nHum aapki kya madad kar sakte hai?\n\n1️⃣ Product Catalog dekhein\n2️⃣ Order place karein\n3️⃣ Koi bhi sawaal poochein — AI jawab dega!`;
-      logMessage(orgId, from, "bot", greetingMsg);
+      await logMessage(orgId, from, "bot", greetingMsg);
       await sendGreetingMessage(orgId, from, customerName, merchantName);
       break;
     case "SEND_CATALOG":
@@ -586,11 +599,11 @@ export const routeMessage = async (
       }));
       if (catalogProducts.length === 0) {
         const noProductMsg = "😔 Abhi koi product available nahi hai. Thodi der baad dobara try karein!";
-        logMessage(orgId, from, "bot", noProductMsg);
+        await logMessage(orgId, from, "bot", noProductMsg);
         await sendTextMessage(orgId, from, noProductMsg);
       } else {
         const catalogMsg = `📦 ${merchantName} Catalog:\n` + catalogProducts.map((p, i) => `${i+1}. ${p.name} — ₹${p.price}`).join("\n");
-        logMessage(orgId, from, "bot", catalogMsg);
+        await logMessage(orgId, from, "bot", catalogMsg);
         await sendCatalogMessage(orgId, from, catalogProducts, merchantName);
       }
       break;
@@ -615,13 +628,13 @@ export const routeMessage = async (
           data: { isEscalated: true }
         });
         const escalateMsg = matchedRule.responseText || "Thank you. An agent will be with you shortly.";
-        logMessage(orgId, from, "bot", escalateMsg);
+        await logMessage(orgId, from, "bot", escalateMsg);
         await sendTextMessage(orgId, from, escalateMsg);
       }
       break;
     case "SET_TAG":
       if (matchedRule.responseText) {
-        logMessage(orgId, from, "bot", matchedRule.responseText);
+        await logMessage(orgId, from, "bot", matchedRule.responseText);
         await sendTextMessage(orgId, from, matchedRule.responseText);
       }
       break;
@@ -629,10 +642,10 @@ export const routeMessage = async (
 };
 
 const handleForwardToAI = async (orgId: string, from: string, trimmedText: string) => {
-  const history = getConversationHistory(from);
-  addToConversation(from, "user", trimmedText);
+  const history = await getConversationHistory(from);
+  await addToConversation(from, "user", trimmedText);
   const aiResponse = await generateAIResponse(orgId, trimmedText, history);
-  addToConversation(from, "model", aiResponse);
-  logMessage(orgId, from, "bot", aiResponse);
+  await addToConversation(from, "model", aiResponse);
+  await logMessage(orgId, from, "bot", aiResponse);
   await sendTextMessage(orgId, from, aiResponse);
 };

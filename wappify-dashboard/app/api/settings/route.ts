@@ -137,8 +137,13 @@ export async function PATCH(req: NextRequest) {
     // Build the update payload — only include keys that were actually sent
     const updateData: Record<string, unknown> = {};
 
-    updateData.name = nextName;
-    updateData.storeCode = generateStoreCode(nextName);
+    if (typeof name === "string" && name.trim()) {
+      updateData.name = name.trim();
+    }
+
+    if (!existingOrg?.storeCode) {
+      updateData.storeCode = generateStoreCode(nextName, true);
+    }
 
     if (typeof whatsappNumber === "string" && whatsappNumber.trim()) {
       updateData.whatsappNumber = whatsappNumber.trim();
@@ -164,11 +169,7 @@ export async function PATCH(req: NextRequest) {
       updateData.businessHoursSchedule = businessHoursSchedule;
     }
 
-    if (
-      Object.keys(updateData).length === 2 &&
-      updateData.name === existingOrg?.name &&
-      updateData.storeCode === existingOrg?.storeCode
-    ) {
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
         { success: false, message: "No valid fields provided for update." },
         { status: 400 }

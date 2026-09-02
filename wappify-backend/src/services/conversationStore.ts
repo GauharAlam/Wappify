@@ -1,103 +1,89 @@
 import { Content } from "@google/generative-ai";
+import { redis } from "../lib/redis";
 
 // ─────────────────────────────────────────────
-// In-memory conversation store
+// Redis-backed conversation store with memory fallback
 // Keyed by WhatsApp ID → array of Gemini Content.
-// Each entry also tracks the last activity timestamp
-// so we can prune stale conversations automatically.
+// Persists user session across server reboots.
 // ─────────────────────────────────────────────
 
 const MAX_MESSAGES_PER_CONVERSATION = 10;
-const CONVERSATION_TTL_MS = 60 * 60 * 1000; // 1 hour
-const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // Run cleanup every 10 minutes
+const CONVERSATION_TTL_SECONDS = 60 * 60; // 1 hour
 
-interface ConversationEntry {
-  history: Content[];
-  lastActivityAt: number;
-}
+// In-memory fallback in case Redis is offline or degraded
+const memoryFallback = new Map<string, Content[]>();
 
-const store = new Map<string, ConversationEntry>();
-
-// ─────────────────────────────────────────────
-// Auto-cleanup — prune entries older than TTL
-// ─────────────────────────────────────────────
-
-setInterval(() => {
-  const now = Date.now();
-  let pruned = 0;
-
-  for (const [waId, entry] of store.entries()) {
-    if (now - entry.lastActivityAt > CONVERSATION_TTL_MS) {
-      store.delete(waId);
-      pruned++;
-    }
-  }
-
-  if (pruned > 0) {
-    console.log(
-      `[CONVERSATION STORE] 🧹 Pruned ${pruned} stale conversation(s). Active: ${store.size}`,
-    );
-  }
-}, CLEANUP_INTERVAL_MS);
-
-// ─────────────────────────────────────────────
-// Public API
-// ─────────────────────────────────────────────
+const getRedisKey = (waId: string) => `convo:${waId}`;
 
 /**
  * Returns the conversation history for a given WhatsApp ID.
- * Returns an empty array if no history exists.
+ * Retrieves from Redis with in-memory fallback.
  */
-export const getConversationHistory = (waId: string): Content[] => {
-  const entry = store.get(waId);
-  return entry ? [...entry.history] : [];
+export const getConversationHistory = async (waId: string): Promise<Content[]> => {
+  try {
+    const raw = await redis.get(getRedisKey(waId));
+    if (raw) {
+      return JSON.parse(raw) as Content[];
+    }
+  } catch (err: any) {
+    console.warn("[CONVERSATION STORE] Redis get failed, using memory fallback:", err?.message);
+    const fallback = memoryFallback.get(waId);
+    if (fallback) return [...fallback];
+  }
+  return [];
 };
 
 /**
- * Appends a message to the conversation history.
+ * Appends a message to the conversation history in Redis.
  * Trims old messages if the history exceeds MAX_MESSAGES_PER_CONVERSATION.
  *
  * @param waId - The WhatsApp ID of the customer
  * @param role - "user" or "model"
  * @param text - The message text
  */
-export const addToConversation = (
+export const addToConversation = async (
   waId: string,
   role: "user" | "model",
   text: string,
-): void => {
-  let entry = store.get(waId);
+): Promise<void> => {
+  let history = await getConversationHistory(waId);
 
-  if (!entry) {
-    entry = { history: [], lastActivityAt: Date.now() };
-    store.set(waId, entry);
-  }
-
-  entry.history.push({
+  history.push({
     role,
     parts: [{ text }],
   });
 
-  entry.lastActivityAt = Date.now();
-
   // Trim to keep only the last N messages
-  if (entry.history.length > MAX_MESSAGES_PER_CONVERSATION) {
-    entry.history = entry.history.slice(-MAX_MESSAGES_PER_CONVERSATION);
+  if (history.length > MAX_MESSAGES_PER_CONVERSATION) {
+    history = history.slice(-MAX_MESSAGES_PER_CONVERSATION);
+  }
+
+  memoryFallback.set(waId, history);
+
+  try {
+    await redis.setex(getRedisKey(waId), CONVERSATION_TTL_SECONDS, JSON.stringify(history));
+  } catch (err: any) {
+    console.warn("[CONVERSATION STORE] Redis setex failed, stored in memory fallback:", err?.message);
   }
 };
 
 /**
- * Clears the conversation history for a given customer.
+ * Clears the conversation history for a given customer in Redis.
  * Useful when a customer starts a new session (e.g., sends "hi").
  */
-export const clearConversation = (waId: string): void => {
-  store.delete(waId);
+export const clearConversation = async (waId: string): Promise<void> => {
+  memoryFallback.delete(waId);
+  try {
+    await redis.del(getRedisKey(waId));
+  } catch (err: any) {
+    console.warn("[CONVERSATION STORE] Redis del failed:", err?.message);
+  }
 };
 
 /**
- * Returns the number of active conversations in the store.
- * Useful for logging/monitoring.
+ * Returns the number of active conversations in the in-memory fallback.
+ * Useful for health checks and debug monitoring.
  */
 export const getActiveConversationCount = (): number => {
-  return store.size;
+  return memoryFallback.size;
 };

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { TemplateCard } from "@/components/onboarding/TemplateCard";
-import { Button } from "@/components/ui/button";
+import { SkipOnboardingButton } from "@/components/onboarding/SkipOnboardingButton";
 import { getAuthContext } from "@/lib/auth-utils";
 import { ONBOARDING_TEMPLATES } from "@/lib/templates";
 
@@ -30,13 +30,7 @@ export default async function OnboardingPage() {
             <img src="/logo.svg" alt="Wappify" className="h-8 w-8 rounded-lg" />
             Wappify
           </Link>
-          <Button asChild variant="ghost" className="text-neutral-500 hover:text-neutral-900">
-            {/* We provide a way to skip using the first template as generic */}
-            <Link href="/inbox">
-              Skip for now
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <SkipOnboardingButton />
         </div>
 
         <section className="mx-auto w-full max-w-3xl py-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
